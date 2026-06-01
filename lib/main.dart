@@ -120,7 +120,7 @@ class MyApp extends StatelessWidget {
       child: SocketProvider(
         socketService: socketService,
         child: MaterialApp(
-          title: 'School Management',
+          title: 'PPMHSS',
           debugShowCheckedModeBanner: false,
           navigatorKey: navigatorKey,
           theme: AppTheme.lightTheme,

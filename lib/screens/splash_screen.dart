@@ -111,8 +111,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(30),
-                      child: Image.network(
-                        'https://res.cloudinary.com/dmjqgjcut/image/upload/v1777479500/school_logo-Photoroom_xcljv5.png',
+                      child: Image.asset(
+                        'assets/images/logo.png',
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) {
                           return const Icon(
@@ -133,7 +133,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   child: Column(
                     children: const [
                       Text(
-                        'PPM HSS',
+                        'PPMHSS',
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,

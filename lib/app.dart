@@ -120,7 +120,7 @@ class _SchoolAppState extends State<SchoolApp> {
         // Show dashboard if authenticated
         if (state.auth.isAuthenticated && state.auth.user != null) {
           return MaterialApp(
-            title: 'School Management',
+            title: 'PPMHSS',
             debugShowCheckedModeBanner: false,
             theme: _buildTheme(),
             navigatorKey: _navigatorKey,
@@ -131,7 +131,7 @@ class _SchoolAppState extends State<SchoolApp> {
         
         // Show login screen
         return MaterialApp(
-          title: 'School Management',
+          title: 'PPMHSS',
           debugShowCheckedModeBanner: false,
           theme: _buildTheme(),
           navigatorKey: _navigatorKey,

@@ -57,8 +57,8 @@ class CustomDrawer extends StatelessWidget {
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(14),
-                              child: Image.network(
-                                'https://res.cloudinary.com/dmjqgjcut/image/upload/v1777479500/school_logo-Photoroom_xcljv5.png',
+                              child: Image.asset(
+                                'assets/images/logo.png',
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) {
                                   return const Center(
@@ -73,7 +73,7 @@ class CustomDrawer extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: const [
                               Text(
-                                'PPM HSS',
+                                'PPMHSS',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
@@ -432,7 +432,7 @@ class CustomDrawer extends StatelessWidget {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        '2024 PPM HSS',
+                        '2024 PPMHSS',
                         style: TextStyle(
                           fontSize: 9,
                           color: Colors.grey[500],
