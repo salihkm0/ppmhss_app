@@ -13,6 +13,7 @@ import 'package:school_management/widgets/common/popup_notification.dart';
 import 'app.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:school_management/widgets/common/version_check_wrapper.dart';
 
 // Global key for root navigator
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -69,8 +70,9 @@ void main() async {
     middleware: [thunkMiddleware],
   );
   
-  // Set store in socket service
+  // Set store in socket service and api service
   socketService.setStore(store);
+  apiService.setStore(store);
   
   // Set notification callback for in-app socket notifications
   socketService.setOnNotificationCallback((notificationData) {
@@ -126,9 +128,11 @@ class MyApp extends StatelessWidget {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: ThemeMode.light,
-          home: SchoolApp(
-            prefs: prefs,
-            secureStorage: secureStorage,
+          home: VersionCheckWrapper(
+            child: SchoolApp(
+              prefs: prefs,
+              secureStorage: secureStorage,
+            ),
           ),
         ),
       ),

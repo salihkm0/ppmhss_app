@@ -4,8 +4,8 @@ import 'package:school_management/store/app_state.dart';
 import 'package:school_management/widgets/common/custom_appbar.dart';
 import 'package:school_management/widgets/common/custom_drawer.dart';
 import 'package:school_management/widgets/dashboard/admin_dashboard.dart';
-import 'package:school_management/widgets/dashboard/staff_dashboard.dart';
-import 'package:school_management/widgets/dashboard/parent_dashboard.dart';
+import 'package:school_management/screens/staff/staff_shell.dart';
+import 'package:school_management/screens/parent/parent_shell.dart';
 import 'package:school_management/hooks/use_socket.dart';
 import 'package:school_management/services/socket_service.dart';
 import 'package:school_management/actions/auth_actions.dart';
@@ -20,12 +20,6 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   SocketService? _socketService;
-  bool _isConnected = false;
-
-  @override
-  void initState() {
-    super.initState();
-  }
 
   @override
   void didChangeDependencies() {
@@ -36,9 +30,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _initSocket() {
     try {
       _socketService = UseSocket.getService(context);
-      setState(() {
-        _isConnected = _socketService?.isConnected ?? false;
-      });
     } catch (e) {
       print('Socket service not yet available: $e');
     }
@@ -58,6 +49,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return StoreConnector<AppState, String>(
       converter: (store) => store.state.auth.user?.role ?? 'parent',
       builder: (context, userRole) {
+        // Staff & Parent get a bottom-nav shell (no drawer)
+        if (userRole == 'staff') return const StaffShell();
+        if (userRole == 'parent') return const ParentShell();
+
+        // Admin keeps the classic drawer layout
         return Scaffold(
           key: _scaffoldKey,
           appBar: CustomAppBar(
@@ -69,20 +65,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
             },
           ),
           drawer: CustomDrawer(onLogout: _logout),
-          body: _buildDashboard(userRole),
+          body: const AdminDashboard(),
         );
       },
     );
-  }
-
-  Widget _buildDashboard(String role) {
-    switch (role) {
-      case 'admin':
-        return const AdminDashboard();
-      case 'staff':
-        return const StaffDashboard();
-      default:
-        return const ParentDashboard();
-    }
   }
 }

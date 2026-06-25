@@ -455,6 +455,7 @@ class StaffDashboardData {
   final List<RecentActivity> recentActivities;
   final ClassTeacherInfo? classTeacherInfo;
   final AcademicYearInfo? academicYear;
+  final List<SubjectClass>? subjectClasses;
 
   StaffDashboardData({
     required this.staffInfo,
@@ -465,6 +466,7 @@ class StaffDashboardData {
     required this.recentActivities,
     this.classTeacherInfo,
     this.academicYear,
+    this.subjectClasses,
   });
 
   factory StaffDashboardData.fromJson(Map<String, dynamic> json) {
@@ -489,6 +491,9 @@ class StaffDashboardData {
       academicYear: json['academicYear'] != null
           ? AcademicYearInfo.fromJson(json['academicYear'])
           : null,
+      subjectClasses: (json['subjectClasses'] as List?)
+          ?.map((e) => SubjectClass.fromJson(e))
+          .toList() ?? [],
     );
   }
 }
@@ -665,6 +670,26 @@ class TeacherClass {
       id: json['id']?.toString() ?? '',
       name: json['name'] ?? '',
       studentCount: json['studentCount'] ?? 0,
+    );
+  }
+}
+
+class SubjectClass {
+  final String id;
+  final String name;
+  final List<String> subjects;
+
+  SubjectClass({
+    required this.id,
+    required this.name,
+    required this.subjects,
+  });
+
+  factory SubjectClass.fromJson(Map<String, dynamic> json) {
+    return SubjectClass(
+      id: json['id']?.toString() ?? '',
+      name: json['name'] ?? '',
+      subjects: (json['subjects'] as List?)?.map((e) => e.toString()).toList() ?? [],
     );
   }
 }

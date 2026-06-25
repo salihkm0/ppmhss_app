@@ -8,6 +8,7 @@ import 'package:school_management/utils/theme.dart';
 import 'package:school_management/widgets/common/loading_widget.dart';
 import 'package:school_management/widgets/common/error_widget.dart';
 import 'package:school_management/screens/staff/staff_marks_entry.dart';
+import 'package:school_management/screens/staff/staff_exam_form.dart';
 
 class StaffExamsPage extends StatefulWidget {
   final String classId;
@@ -47,6 +48,22 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
         elevation: 0,
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => StaffExamFormPage(
+                    classId: widget.classId,
+                    className: widget.className,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: StoreConnector<AppState, _ExamViewModel>(
         converter: (store) => _ExamViewModel(
@@ -171,32 +188,60 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
             ),
             const SizedBox(height: 12),
             // Action button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => StaffMarksEntryPage(
-                        classId: widget.classId,
-                        className: widget.className,
-                        examId: exam.id,
-                        examName: exam.displayName ?? exam.name,
-                      ),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => StaffMarksEntryPage(
+                            classId: widget.classId,
+                            className: widget.className,
+                            examId: exam.id,
+                            examName: exam.displayName ?? exam.name,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.edit_note, size: 18),
+                    label: const Text('Enter Marks'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
-                  );
-                },
-                icon: const Icon(Icons.edit_note, size: 18),
-                label: const Text('Enter Marks'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryColor,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => StaffExamFormPage(
+                            classId: widget.classId,
+                            className: widget.className,
+                            existingExam: exam,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.edit, size: 18),
+                    label: const Text('Edit Exam'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.primaryColor,
+                      side: BorderSide(color: AppTheme.primaryColor),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

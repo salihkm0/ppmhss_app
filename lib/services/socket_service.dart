@@ -5,6 +5,7 @@ import 'package:school_management/models/notification_model.dart';
 import 'package:school_management/actions/notification_actions.dart';
 import 'package:redux/redux.dart';
 import 'package:school_management/store/app_state.dart';
+import 'package:school_management/main.dart'; // Add for navigatorKey
 
 class SocketService {
   static final SocketService _instance = SocketService._internal();
@@ -232,6 +233,16 @@ class SocketService {
 
       _socket!.on('subscribed:notifications', (data) {
         debugPrint('📢 Subscribed to notifications: $data');
+      });
+
+      _socket!.on('maintenance_mode_changed', (data) {
+        debugPrint('🛠️ Maintenance mode changed: $data');
+        if (data is Map && data['enabled'] == true) {
+          // Exclude administration role
+          if (_currentUserRole != 'administration') {
+            navigatorKey.currentState?.pushNamedAndRemoveUntil('/maintenance', (route) => false);
+          }
+        }
       });
 
       _socket!.on('error', (error) {

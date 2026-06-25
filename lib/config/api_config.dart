@@ -1,7 +1,13 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 class ApiConfig {
-  // static const String baseUrl = 'http://localhost:5055/api';
-  // static const String baseUrl = 'http://10.0.2.2:5055/api';
-  static const String baseUrl = 'https://ppmhss-backend.onrender.com/api';
+  // Using localhost for everything. 
+  // For physical Android devices, we use `adb reverse tcp:5055 tcp:5055` to route localhost over USB.
+  static String get baseUrl {
+    return 'http://127.0.0.1:5055/api'; 
+  }
+  // static const String baseUrl = 'https://ppmhss-backend.onrender.com/api';
   static const int connectTimeout = 30000;
   static const int receiveTimeout = 30000;
 
@@ -63,4 +69,7 @@ class ApiConfig {
   
   // Notifications
   static const String notifications = '/notifications';
+
+  // Config
+  static const String appVersion = '/app-config/version';
 }

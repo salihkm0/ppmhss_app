@@ -4,6 +4,7 @@ import 'package:school_management/actions/auth_actions.dart';
 import 'package:school_management/screens/dashboard_screen.dart';
 import 'package:school_management/screens/login_screen.dart';
 import 'package:school_management/screens/splash_screen.dart';
+import 'package:school_management/utils/theme.dart';
 
 // Student Screens
 import 'package:school_management/screens/students/student_list_screen.dart';
@@ -55,6 +56,9 @@ import 'package:school_management/screens/staff/my_duties_page.dart';
 import 'package:school_management/screens/staff/staff_attendance_page.dart';
 import 'package:school_management/screens/staff/staff_exams_page.dart';
 import 'package:school_management/screens/staff/staff_marks_entry.dart';
+
+// Maintenance
+import 'package:school_management/screens/maintenance_screen.dart';
 
 // Store
 import 'package:school_management/store/app_state.dart';
@@ -143,50 +147,18 @@ class _SchoolAppState extends State<SchoolApp> {
   }
 
   ThemeData _buildTheme() {
-    return ThemeData(
-      primarySwatch: Colors.blue,
-      useMaterial3: true,
-      fontFamily: 'Roboto',
-      appBarTheme: const AppBarTheme(
-        elevation: 0,
-        centerTitle: false,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-      ),
-      scaffoldBackgroundColor: Colors.grey[50],
-      cardTheme: const CardThemeData(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(12)),
-        ),
-        clipBehavior: Clip.antiAlias,
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        filled: true,
-        fillColor: Colors.grey[100],
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
-        ),
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
-    );
+    return AppTheme.lightTheme;
   }
 
   Route<dynamic>? _generateRoute(RouteSettings settings) {
     switch (settings.name) {
+      // ==================== MAINTENANCE ====================
+      case '/maintenance':
+        return MaterialPageRoute(
+          builder: (_) => const MaintenanceScreen(),
+          settings: settings,
+        );
+
       // ==================== STUDENT ROUTES ====================
       case '/students':
         return MaterialPageRoute(

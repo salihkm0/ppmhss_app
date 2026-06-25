@@ -1,18 +1,61 @@
+// lib/screens/staff/staff_marks_entry.dart
+// Matches the React StaffMarksEntry page logic exactly:
+//   GET  /marks/class/{examId}/{classId}       → subjects, students, subjectProgress
+//   GET  /marks/permissions/{examId}/{classId} → permissions
+//   POST /marks/bulk/{examId}/{classId}        → { studentsData }
+
 import 'package:flutter/material.dart';
-import 'package:flutter_redux/flutter_redux.dart';
-import 'package:school_management/actions/exam_actions.dart';
-import 'package:school_management/actions/student_actions.dart';
-import 'package:school_management/models/student_model.dart';
+import 'package:flutter/services.dart';
+import 'package:school_management/services/api_service.dart';
+import 'package:school_management/services/exam_service.dart';
 import 'package:school_management/models/exam_model.dart';
-import 'package:school_management/store/app_state.dart';
 import 'package:school_management/utils/theme.dart';
 import 'package:school_management/widgets/common/loading_widget.dart';
 import 'package:school_management/widgets/common/error_widget.dart';
 
+// ── Grade helpers ────────────────────────────────────────────────
+Map<String, dynamic> _gradeInfo(int obtained, int max) {
+  final pct = max > 0 ? (obtained / max) * 100 : 0.0;
+  if (pct >= 90) return {'grade': 'A+', 'color': const Color(0xFF059669)};
+  if (pct >= 80) return {'grade': 'A',  'color': const Color(0xFF16A34A)};
+  if (pct >= 70) return {'grade': 'B+', 'color': const Color(0xFF2563EB)};
+  if (pct >= 60) return {'grade': 'B',  'color': const Color(0xFF0891B2)};
+  if (pct >= 50) return {'grade': 'C+', 'color': const Color(0xFFCA8A04)};
+  if (pct >= 40) return {'grade': 'C',  'color': const Color(0xFFEA580C)};
+  if (pct >= 33) return {'grade': 'D',  'color': const Color(0xFFEF4444)};
+  return {'grade': 'F', 'color': const Color(0xFF6B7280)};
+}
+
+Color _pctColor(double pct) {
+  if (pct >= 75) return const Color(0xFF16A34A);
+  if (pct >= 50) return const Color(0xFFCA8A04);
+  return const Color(0xFFEF4444);
+}
+
+// ── Mark Service (direct API calls, no Redux) ────────────────────
+class _MarkService {
+  final ApiService _api = ApiService();
+
+  Future<Map<String, dynamic>> getMarksheetsByClass(String examId, String classId) async {
+    final res = await _api.get('/marks/class/$examId/$classId', noCache: true);
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getPermissions(String examId, String classId) async {
+    final res = await _api.get('/marks/permissions/$examId/$classId', noCache: true);
+    return res.data as Map<String, dynamic>;
+  }
+
+  Future<void> bulkUpdateMarks(String examId, String classId, List<Map<String, dynamic>> studentsData) async {
+    _api.invalidateCache('/marks');
+    await _api.post('/marks/bulk/$examId/$classId', data: {'studentsData': studentsData});
+  }
+}
+
+// ── Main Widget ──────────────────────────────────────────────────
 class StaffMarksEntryPage extends StatefulWidget {
   final String classId;
   final String className;
-  /// Optional: pre-selected exam (when navigating from StaffExamsPage)
   final String? examId;
   final String? examName;
 
@@ -29,657 +72,820 @@ class StaffMarksEntryPage extends StatefulWidget {
 }
 
 class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
-  List<StudentModel> _students = [];
+  final _markService = _MarkService();
+  final _examService = ExamService();
+
+  // ── Selections ──
   List<ExamModel> _exams = [];
   String? _selectedExamId;
   String _searchTerm = '';
+
+  // ── Data (mirrors React state) ──
+  List<Map<String, dynamic>> _students = [];
+  Map<String, dynamic>? _permissions;
+  List<Map<String, dynamic>> _examSubjects = [];
+  List<Map<String, dynamic>> _subjectProgress = [];
+
+  // tempMarks: { studentId: { examSubjectId: { theoryScore, practicalScore, ceMarks, isAbsent, isEntered } } }
+  Map<String, Map<String, Map<String, dynamic>>> _tempMarks = {};
+
+  // Dirty tracking — only send changed students on save
+  final Set<String> _dirtyStudents = {};
+
+  // ── UI ──
   bool _isLoading = false;
   bool _isSaving = false;
   String? _error;
 
-  // { studentId: { subjectId: { 'theoryScore': int, 'practicalScore': int, 'maxMarks': int } } }
-  Map<String, Map<String, Map<String, dynamic>>> _marksData = {};
-
-  // Subjects list from the selected exam's response
-  // Each entry: { subjectId, subjectName, maxTheory, maxPractical }
-  List<Map<String, dynamic>> _subjects = [];
-
-  // Expanded state per student
-  Map<String, bool> _expanded = {};
-
   @override
   void initState() {
     super.initState();
-    // Pre-select exam if provided
     if (widget.examId != null && widget.examId!.isNotEmpty) {
       _selectedExamId = widget.examId;
     }
-    _loadData();
+    _loadInitialData();
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // Data Loading
+  // ────────────────────────────────────────────────────────────────
+
+  Future<void> _loadInitialData() async {
+    if (mounted) setState(() { _isLoading = true; _error = null; });
+    try {
+      final raw = await _examService.getExams(limit: 100);
+      final list = raw['data'] as List? ?? [];
+      _exams = list.map((j) => ExamModel.fromJson(j as Map<String, dynamic>)).toList();
+      if (mounted) setState(() {});
+      if (_selectedExamId != null) await _loadData();
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _loadData() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    final store = StoreProvider.of<AppState>(context, listen: false);
+    final examId = _selectedExamId;
+    if (examId == null || examId.isEmpty) return;
+    if (mounted) setState(() { _isLoading = true; _error = null; });
     try {
-      await store.dispatch(
-          fetchStudentsByClassThunk(FetchStudentsByClassAction(classId: widget.classId)));
-      await store.dispatch(fetchTeacherExamsThunk());
+      final results = await Future.wait([
+        _markService.getPermissions(examId, widget.classId),
+        _markService.getMarksheetsByClass(examId, widget.classId),
+      ]);
 
-      setState(() {
-        _students = store.state.students.students;
-        _exams = store.state.exams.exams;
-      });
+      final permRes  = results[0] as Map<String, dynamic>;
+      final markRes  = results[1] as Map<String, dynamic>;
 
-      // If exam was pre-selected, immediately load marks
-      if (_selectedExamId != null) {
-        await _loadMarks(_selectedExamId!);
+      final markData = markRes['data'] as Map<String, dynamic>? ?? markRes;
+
+      final subjects  = (markData['subjects'] as List? ?? []).cast<Map<String, dynamic>>();
+      final students  = (markData['students'] as List? ?? []).cast<Map<String, dynamic>>();
+      final progress  = (markData['subjectProgress'] as List? ?? []).cast<Map<String, dynamic>>();
+
+      // Build tempMarks — same as React
+      final Map<String, Map<String, Map<String, dynamic>>> initial = {};
+      for (final student in students) {
+        final sid = student['studentId']?.toString() ?? '';
+        if (sid.isEmpty) continue;
+        initial[sid] = {};
+        final subjs = (student['subjects'] as List? ?? []).cast<Map<String, dynamic>>();
+        for (final subj in subjs) {
+          final key = subj['examSubjectId']?.toString() ?? subj['subjectId']?.toString() ?? '';
+          if (key.isEmpty) continue;
+          final isEntered = subj['isEntered'] == true ||
+              (subj['theoryScore'] as num? ?? 0) > 0 ||
+              (subj['practicalScore'] as num? ?? 0) > 0 ||
+              (subj['ceScore'] as num? ?? subj['ceMarks'] as num? ?? 0) > 0 ||
+              subj['isAbsent'] == true;
+          initial[sid]![key] = {
+            'theoryScore':    isEntered ? (subj['theoryScore']   ?? 0) : '',
+            'practicalScore': isEntered ? (subj['practicalScore'] ?? 0) : '',
+            'ceMarks':        isEntered ? (subj['ceScore'] ?? subj['ceMarks'] ?? 0) : '',
+            'isAbsent':  subj['isAbsent'] ?? false,
+            'isEntered': isEntered,
+          };
+        }
       }
-    } catch (e) {
-      setState(() => _error = e.toString());
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
 
-  Future<void> _loadMarks(String examId) async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-    final store = StoreProvider.of<AppState>(context, listen: false);
-
-    try {
-      await store.dispatch(
-          fetchMarksForClassThunk(examId: examId, classId: widget.classId));
-
-      final rawData = store.state.exams.classMarks;
-      if (rawData != null) {
-        _parseMarksResponse(rawData);
-      }
-    } catch (e) {
-      // Non-fatal: marks may not exist yet — start with empty data
-      setState(() {
-        _subjects = _extractSubjectsFromExam(examId);
-        _marksData = {};
-      });
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  /// Extract subject info from the exam model if marks API returns nothing
-  List<Map<String, dynamic>> _extractSubjectsFromExam(String examId) {
-    final exam = _exams.firstWhere((e) => e.id == examId,
-        orElse: () => ExamModel(
-            id: '',
-            name: '',
-            examType: '',
-            startDate: DateTime.now(),
-            endDate: DateTime.now()));
-    if (exam.subjects == null) return [];
-    return exam.subjects!.map((s) {
-      final sid = s['subjectId']?['_id'] ?? s['subjectId'] ?? s['_id'] ?? '';
-      final name = s['subjectId']?['name'] ?? s['name'] ?? 'Subject';
-      final maxT = (s['maxTheoryMarks'] as num?)?.toInt() ?? 100;
-      final maxP = (s['maxPracticalMarks'] as num?)?.toInt() ?? 0;
-      return {
-        'subjectId': sid.toString(),
-        'subjectName': name.toString(),
-        'maxTheory': maxT,
-        'maxPractical': maxP,
-      };
-    }).toList();
-  }
-
-  void _parseMarksResponse(Map<String, dynamic> raw) {
-    // Subjects array from marks response
-    final subjectsRaw = raw['subjects'] as List? ??
-                        raw['data']?['subjects'] as List? ?? [];
-    final subjects = subjectsRaw.map((s) {
-      final sid = s['subjectId']?['_id'] ?? s['subjectId'] ?? s['_id'] ?? '';
-      final name = s['subjectId']?['name'] ?? s['name'] ?? 'Subject';
-      final maxT = (s['maxTheoryMarks'] as num?)?.toInt() ?? 100;
-      final maxP = (s['maxPracticalMarks'] as num?)?.toInt() ?? 0;
-      return {
-        'subjectId': sid.toString(),
-        'subjectName': name.toString(),
-        'maxTheory': maxT,
-        'maxPractical': maxP,
-      };
-    }).toList();
-
-    // Marks array
-    final marksRaw = raw['marks'] as List? ??
-                     raw['data']?['marks'] as List? ?? [];
-    final Map<String, Map<String, Map<String, dynamic>>> parsed = {};
-    for (final m in marksRaw) {
-      final sid = m['studentId']?['_id'] ?? m['studentId']?.toString() ?? '';
-      final subId = m['subjectId']?['_id'] ?? m['subjectId']?.toString() ?? '';
-      if (sid.isEmpty || subId.isEmpty) continue;
-      parsed[sid] ??= {};
-      parsed[sid]![subId] = {
-        'theoryScore': (m['theoryScore'] as num?)?.toInt() ?? 0,
-        'practicalScore': (m['practicalScore'] as num?)?.toInt() ?? 0,
-        'totalScore': (m['totalScore'] as num?)?.toInt() ?? 0,
-      };
-    }
-
-    setState(() {
-      _subjects = subjects.cast<Map<String, dynamic>>();
-      _marksData = parsed;
-    });
-  }
-
-  void _updateMark(String studentId, String subjectId, String field, int value) {
-    setState(() {
-      _marksData[studentId] ??= {};
-      _marksData[studentId]![subjectId] ??= {
-        'theoryScore': 0,
-        'practicalScore': 0,
-        'totalScore': 0,
-      };
-      _marksData[studentId]![subjectId]![field] = value;
-      final theory = _marksData[studentId]![subjectId]!['theoryScore'] as int? ?? 0;
-      final practical = _marksData[studentId]![subjectId]!['practicalScore'] as int? ?? 0;
-      _marksData[studentId]![subjectId]!['totalScore'] = theory + practical;
-    });
-  }
-
-  double _studentPercentage(String studentId) {
-    if (_subjects.isEmpty) return 0;
-    int totalObtained = 0;
-    int totalMax = 0;
-    for (final sub in _subjects) {
-      final sid = sub['subjectId'] as String;
-      final maxT = sub['maxTheory'] as int;
-      final maxP = sub['maxPractical'] as int;
-      totalMax += maxT + maxP;
-      totalObtained +=
-          (_marksData[studentId]?[sid]?['theoryScore'] as int? ?? 0) +
-              (_marksData[studentId]?[sid]?['practicalScore'] as int? ?? 0);
-    }
-    return totalMax > 0 ? (totalObtained / totalMax) * 100 : 0;
-  }
-
-  Future<void> _saveAllMarks() async {
-    if (_selectedExamId == null) return;
-    setState(() => _isSaving = true);
-
-    final marksPayload = <Map<String, dynamic>>[];
-    for (final student in _students) {
-      for (final sub in _subjects) {
-        final subId = sub['subjectId'] as String;
-        final marks = _marksData[student.id]?[subId];
-        marksPayload.add({
-          'studentId': student.id,
-          'subjectId': subId,
-          'theoryScore': marks?['theoryScore'] ?? 0,
-          'practicalScore': marks?['practicalScore'] ?? 0,
+      if (mounted) {
+        setState(() {
+          _permissions    = permRes['data'] as Map<String, dynamic>? ?? permRes;
+          _examSubjects   = subjects;
+          _students       = students;
+          _subjectProgress = progress;
+          _tempMarks      = initial;
+          _dirtyStudents.clear();
         });
       }
-    }
-
-    final store = StoreProvider.of<AppState>(context, listen: false);
-    try {
-      await store.dispatch(saveStudentMarksThunk(
-        examId: _selectedExamId!,
-        classId: widget.classId,
-        marksData: marksPayload,
-      ));
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Marks saved successfully'),
-          backgroundColor: Colors.green,
-        ));
-      }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Failed to save marks: $e'),
-          backgroundColor: Colors.red,
-        ));
-      }
+      if (mounted) setState(() => _error = e.toString());
     } finally {
-      setState(() => _isSaving = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  List<StudentModel> get _filteredStudents {
-    if (_searchTerm.isEmpty) return _students;
-    return _students
-        .where((s) =>
-            s.fullName.toLowerCase().contains(_searchTerm.toLowerCase()) ||
-            (s.rollNumber?.toLowerCase().contains(_searchTerm.toLowerCase()) ??
-                false))
-        .toList();
+  void _resetData() {
+    setState(() {
+      _students = [];
+      _permissions = null;
+      _examSubjects = [];
+      _subjectProgress = [];
+      _tempMarks = {};
+      _dirtyStudents.clear();
+    });
   }
+
+  // ────────────────────────────────────────────────────────────────
+  // Permissions
+  // ────────────────────────────────────────────────────────────────
+
+  bool get _isAdmin => _permissions?['isAdmin'] == true;
+  bool get _isClassTeacher => _permissions?['isClassTeacher'] == true;
+  bool get _hasEditPermission =>
+      _isAdmin ||
+      ((_permissions?['allowedSubjects'] as List?)?.isNotEmpty ?? false);
+
+  bool _canEditSubject(String examSubjectId) {
+    if (_permissions == null) return false;
+    if (_isAdmin) return true;
+    final allowed = (_permissions!['allowedSubjects'] as List? ?? []);
+    return allowed.any((s) =>
+        s['subjectId']?.toString() == examSubjectId ||
+        s['subjectId'] == examSubjectId);
+  }
+
+  bool get _allMarksEntered =>
+      _subjectProgress.isNotEmpty &&
+      _subjectProgress.every((sp) => (sp['percentage'] as num? ?? 0) == 100);
+
+  // ────────────────────────────────────────────────────────────────
+  // Mark Change Handlers
+  // ────────────────────────────────────────────────────────────────
+
+  void _handleMarkChange(String studentId, String examSubjectId, String field, dynamic value) {
+    if (!_canEditSubject(examSubjectId)) {
+      _showSnack("You don't have permission to edit this subject", isError: true);
+      return;
+    }
+    final subj = _examSubjects.firstWhere(
+      (s) => (s['examSubjectId']?.toString() ?? '') == examSubjectId,
+      orElse: () => {},
+    );
+
+    int? parsed;
+    if (value != '' && value != null) {
+      parsed = int.tryParse(value.toString()) ?? 0;
+      int max = 0;
+      if (field == 'theoryScore')    max = (subj['theoryMaxMarks'] ?? subj['termMaxMarks'] ?? subj['maxMarks'] ?? 100) as int;
+      if (field == 'practicalScore') max = (subj['practicalMaxMarks'] ?? 0) as int;
+      if (field == 'ceMarks')        max = (subj['ceMaxMarks'] ?? 0) as int;
+      parsed = parsed.clamp(0, max > 0 ? max : 9999);
+    }
+
+    _dirtyStudents.add(studentId);
+    setState(() {
+      _tempMarks[studentId] ??= {};
+      final curr = Map<String, dynamic>.from(_tempMarks[studentId]![examSubjectId] ?? {
+        'theoryScore': '', 'practicalScore': '', 'ceMarks': '', 'isAbsent': false, 'isEntered': false,
+      });
+      curr[field] = parsed ?? '';
+      curr['isEntered'] = true;
+      _tempMarks[studentId]![examSubjectId] = curr;
+    });
+  }
+
+  void _handleAbsentToggle(String studentId, String examSubjectId) {
+    if (!_canEditSubject(examSubjectId)) {
+      _showSnack("You don't have permission to edit this subject", isError: true);
+      return;
+    }
+    _dirtyStudents.add(studentId);
+    setState(() {
+      _tempMarks[studentId] ??= {};
+      final curr = Map<String, dynamic>.from(_tempMarks[studentId]![examSubjectId] ?? {
+        'theoryScore': 0, 'practicalScore': 0, 'ceMarks': 0, 'isAbsent': false,
+      });
+      final nowAbsent = !(curr['isAbsent'] as bool? ?? false);
+      _tempMarks[studentId]![examSubjectId] = {
+        ...curr,
+        'isAbsent': nowAbsent,
+        'theoryScore':    nowAbsent ? 0 : curr['theoryScore'],
+        'practicalScore': nowAbsent ? 0 : curr['practicalScore'],
+        'ceMarks':        nowAbsent ? 0 : curr['ceMarks'],
+      };
+    });
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // Save
+  // ────────────────────────────────────────────────────────────────
+
+  Future<void> _handleSave() async {
+    final examId = _selectedExamId;
+    if (examId == null) return;
+
+    final filtered = _filteredStudents;
+    final targets = _dirtyStudents.isNotEmpty
+        ? filtered.where((s) => _dirtyStudents.contains(s['studentId']?.toString())).toList()
+        : filtered; // fallback
+
+    if (targets.isEmpty) {
+      _showSnack('No changes to save.');
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      final studentsData = targets.map((student) {
+        final sid = student['studentId']?.toString() ?? '';
+        final subjs = (student['subjects'] as List? ?? []).cast<Map<String, dynamic>>();
+        return {
+          'studentId': sid,
+          'subjects': subjs.map((subj) {
+            final key = subj['examSubjectId']?.toString() ?? subj['subjectId']?.toString() ?? '';
+            final tm = _tempMarks[sid]?[key] ?? {};
+            return {
+              'examSubjectId': subj['examSubjectId'] ?? subj['subjectId'],
+              'subjectId':     subj['actualSubjectId'] ?? subj['subjectId'],
+              'theoryScore':    (tm['theoryScore'] == '' ? 0 : tm['theoryScore']) ?? subj['theoryScore'] ?? 0,
+              'practicalScore': (tm['practicalScore'] == '' ? 0 : tm['practicalScore']) ?? subj['practicalScore'] ?? 0,
+              'ceMarks':        (tm['ceMarks'] == '' ? 0 : tm['ceMarks']) ?? (subj['ceMarks'] ?? subj['ceScore']) ?? 0,
+              'isAbsent': tm['isAbsent'] ?? subj['isAbsent'] ?? false,
+              'remarks':  subj['remarks'] ?? '',
+            };
+          }).toList(),
+          'remarks': student['remarks'] ?? '',
+        };
+      }).toList();
+
+      await _markService.bulkUpdateMarks(examId, widget.classId, studentsData);
+      if (mounted) setState(() => _isSaving = false);
+      _showSnack('Saved marks for ${targets.length} student${targets.length != 1 ? 's' : ''}!');
+      _dirtyStudents.clear();
+      await _loadData(); // refresh
+    } catch (e) {
+      if (mounted) setState(() => _isSaving = false);
+      _showSnack('Failed to save marks: $e', isError: true);
+    }
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // Helpers
+  // ────────────────────────────────────────────────────────────────
+
+  List<Map<String, dynamic>> get _filteredStudents {
+    if (_searchTerm.isEmpty) return _students;
+    final q = _searchTerm.toLowerCase();
+    return _students.where((s) =>
+        (s['studentName']?.toString().toLowerCase().contains(q) ?? false) ||
+        (s['rollNumber']?.toString().toLowerCase().contains(q) ?? false) ||
+        (s['admissionNo']?.toString().toLowerCase().contains(q) ?? false)).toList();
+  }
+
+  double _studentPercentage(String studentId, List<Map<String, dynamic>> subjs) {
+    if (subjs.isEmpty) return 0;
+    int obtained = 0, maxTotal = 0;
+    for (final subj in subjs) {
+      final key = subj['examSubjectId']?.toString() ?? subj['subjectId']?.toString() ?? '';
+      final tm = _tempMarks[studentId]?[key] ?? {};
+      final theory    = (tm['theoryScore']    is int ? tm['theoryScore']    : int.tryParse(tm['theoryScore']?.toString() ?? '0') ?? 0) as int;
+      final practical = (tm['practicalScore'] is int ? tm['practicalScore'] : int.tryParse(tm['practicalScore']?.toString() ?? '0') ?? 0) as int;
+      final ce        = (tm['ceMarks']        is int ? tm['ceMarks']        : int.tryParse(tm['ceMarks']?.toString() ?? '0') ?? 0) as int;
+      obtained += theory + practical + ce;
+      maxTotal += ((subj['theoryMaxMarks'] ?? subj['termMaxMarks'] ?? 100) as num).toInt()
+                + ((subj['practicalMaxMarks'] ?? 0) as num).toInt()
+                + ((subj['ceMaxMarks'] ?? 0) as num).toInt();
+    }
+    return maxTotal > 0 ? (obtained / maxTotal) * 100 : 0;
+  }
+
+  void _showSnack(String msg, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: isError ? Colors.red[700] : AppTheme.primaryColor,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ));
+  }
+
+  // ────────────────────────────────────────────────────────────────
+  // Build
+  // ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: Text('Marks Entry – ${widget.className}'),
-        centerTitle: false,
-        elevation: 0,
-        backgroundColor: AppTheme.primaryColor,
-        foregroundColor: Colors.white,
-        actions: [
-          if (_selectedExamId != null && _subjects.isNotEmpty)
-            TextButton.icon(
-              onPressed: _isSaving ? null : _saveAllMarks,
-              icon: _isSaving
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.save, color: Colors.white, size: 18),
-              label: const Text('Save All',
-                  style: TextStyle(color: Colors.white, fontSize: 13)),
-            ),
-        ],
-      ),
-      body: _isLoading && _students.isEmpty
-          ? const Center(child: LoadingWidget())
-          : _error != null && _students.isEmpty
-              ? Center(
-                  child: CustomErrorWidget(
-                      message: _error!, onRetry: _loadData))
-              : _buildContent(),
-    );
-  }
-
-  Widget _buildContent() {
-    return Column(
-      children: [
-        // Exam Selector
-        Container(
-          margin: const EdgeInsets.all(16),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Select Exam',
-                  style:
-                      TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: _selectedExamId,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  hintText: 'Choose an exam',
-                ),
-                items: _exams.map((exam) {
-                  return DropdownMenuItem(
-                      value: exam.id,
-                      child: Text(exam.displayName ?? exam.name));
-                }).toList(),
-                onChanged: (value) {
-                  if (value == null || value == _selectedExamId) return;
-                  setState(() {
-                    _selectedExamId = value;
-                    _marksData = {};
-                    _subjects = [];
-                  });
-                  _loadMarks(value);
-                },
-              ),
-            ],
+    return Stack(children: [
+      Scaffold(
+        backgroundColor: const Color(0xFFF2F4F8),
+        body: NestedScrollView(
+          headerSliverBuilder: (ctx, _) => [_buildAppBar()],
+          body: RefreshIndicator(
+            onRefresh: _loadData,
+            color: AppTheme.primaryColor,
+            child: _isLoading && _students.isEmpty && _examSubjects.isEmpty
+                ? const Center(child: LoadingWidget())
+                : _error != null && _students.isEmpty
+                    ? Center(child: CustomErrorWidget(message: _error!, onRetry: _loadData))
+                    : _buildBody(),
           ),
         ),
-
-        // Search bar
-        if (_students.isNotEmpty && _selectedExamId != null)
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      ),
+      // Saving overlay
+      if (_isSaving) ModalBarrier(dismissible: false, color: Colors.black.withOpacity(0.4)),
+      if (_isSaving)
+        Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 20)],
             ),
-            child: TextField(
-              decoration: const InputDecoration(
-                hintText: 'Search by name or roll number...',
-                prefixIcon: Icon(Icons.search, size: 18),
-                border: InputBorder.none,
-              ),
-              onChanged: (v) => setState(() => _searchTerm = v),
-            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              CircularProgressIndicator(color: AppTheme.primaryColor, strokeWidth: 3),
+              const SizedBox(height: 16),
+              const Text('Saving marks…', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            ]),
           ),
+        ),
+      // Refetch overlay
+      if (_isLoading && (_students.isNotEmpty || _examSubjects.isNotEmpty))
+        ModalBarrier(dismissible: false, color: Colors.black.withOpacity(0.15)),
+      if (_isLoading && (_students.isNotEmpty || _examSubjects.isNotEmpty))
+        const Center(child: LoadingWidget()),
+    ]);
+  }
 
-        // No exam selected
-        if (_selectedExamId == null)
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.quiz_outlined, size: 64, color: Colors.grey[300]),
-                  const SizedBox(height: 16),
-                  Text('Select an exam above to start entering marks',
-                      style: TextStyle(
-                          fontSize: 14, color: Colors.grey[600])),
-                ],
-              ),
+  Widget _buildAppBar() {
+    return SliverAppBar(
+      pinned: true,
+      expandedHeight: 130,
+      backgroundColor: AppTheme.primaryColor,
+      foregroundColor: Colors.white,
+      title: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        const Text('Marks Entry', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+        Text(widget.className, style: const TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.w400)),
+      ]),
+      actions: [
+        if (_hasEditPermission && _selectedExamId != null && _examSubjects.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: TextButton.icon(
+              onPressed: _isSaving ? null : _handleSave,
+              icon: const Icon(Icons.check_rounded, color: Colors.white, size: 18),
+              label: Text(_dirtyStudents.isNotEmpty
+                  ? 'Save (${_dirtyStudents.length})'
+                  : 'Save All',
+                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
             ),
-          ),
-
-        // Loading marks
-        if (_isLoading && _selectedExamId != null && _subjects.isEmpty)
-          const Expanded(child: Center(child: LoadingWidget())),
-
-        // Students list
-        if (!_isLoading && _selectedExamId != null)
-          Expanded(
-            child: _subjects.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.info_outline,
-                            size: 48, color: Colors.grey[400]),
-                        const SizedBox(height: 12),
-                        Text('No subjects configured for this exam',
-                            style: TextStyle(
-                                fontSize: 14, color: Colors.grey[600])),
-                      ],
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _filteredStudents.length,
-                    itemBuilder: (context, index) {
-                      final student = _filteredStudents[index];
-                      final isExpanded = _expanded[student.id] ?? false;
-                      final pct = _studentPercentage(student.id);
-
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: BorderSide(color: Colors.grey[200]!),
-                        ),
-                        child: Column(
-                          children: [
-                            // Header
-                            ListTile(
-                              onTap: () => setState(
-                                  () => _expanded[student.id] = !isExpanded),
-                              leading: CircleAvatar(
-                                backgroundColor:
-                                    AppTheme.primaryColor.withOpacity(0.1),
-                                child: Text(
-                                  student.fullName[0].toUpperCase(),
-                                  style: const TextStyle(
-                                      color: AppTheme.primaryColor,
-                                      fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                              title: Text(student.fullName,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w500)),
-                              subtitle: Text(
-                                  'Roll: ${student.rollNumber?.isEmpty ?? true ? '-' : student.rollNumber!}'),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.end,
-                                    children: [
-                                      Text(
-                                        '${pct.toStringAsFixed(1)}%',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: _pctColor(pct),
-                                          fontSize: 14,
-                                        ),
-                                      ),
-                                      Text('Total',
-                                          style: TextStyle(
-                                              fontSize: 10,
-                                              color: Colors.grey[500])),
-                                    ],
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Icon(
-                                      isExpanded
-                                          ? Icons.expand_less
-                                          : Icons.expand_more,
-                                      size: 20),
-                                ],
-                              ),
-                            ),
-
-                            // Expanded marks entry
-                            if (isExpanded)
-                              Container(
-                                padding: const EdgeInsets.fromLTRB(
-                                    16, 0, 16, 16),
-                                decoration: BoxDecoration(
-                                  color: Colors.grey[50],
-                                  borderRadius: const BorderRadius.vertical(
-                                      bottom: Radius.circular(12)),
-                                ),
-                                child: Column(
-                                  children:
-                                      _subjects.map((sub) {
-                                    final subId =
-                                        sub['subjectId'] as String;
-                                    final subName =
-                                        sub['subjectName'] as String;
-                                    final maxT =
-                                        sub['maxTheory'] as int;
-                                    final maxP =
-                                        sub['maxPractical'] as int;
-                                    final currentT = _marksData[student
-                                            .id]?[subId]?['theoryScore'] as int? ??
-                                        0;
-                                    final currentP = _marksData[student
-                                            .id]?[subId]?['practicalScore'] as int? ??
-                                        0;
-
-                                    return Container(
-                                      margin:
-                                          const EdgeInsets.only(top: 12),
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius:
-                                            BorderRadius.circular(10),
-                                        border: Border.all(
-                                            color: Colors.grey[200]!),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(subName,
-                                              style: const TextStyle(
-                                                  fontWeight:
-                                                      FontWeight.w600,
-                                                  fontSize: 13)),
-                                          const SizedBox(height: 10),
-                                          Row(
-                                            children: [
-                                              // Theory
-                                              Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment
-                                                          .start,
-                                                  children: [
-                                                    Text(
-                                                        'Theory (/$maxT)',
-                                                        style: TextStyle(
-                                                            fontSize: 11,
-                                                            color: Colors
-                                                                .grey[600])),
-                                                    const SizedBox(
-                                                        height: 4),
-                                                    TextFormField(
-                                                      key: ValueKey(
-                                                          'theory_${student.id}_$subId'),
-                                                      initialValue:
-                                                          currentT
-                                                              .toString(),
-                                                      keyboardType:
-                                                          TextInputType
-                                                              .number,
-                                                      decoration:
-                                                          const InputDecoration(
-                                                        border:
-                                                            OutlineInputBorder(),
-                                                        contentPadding:
-                                                            EdgeInsets.symmetric(
-                                                                horizontal:
-                                                                    8,
-                                                                vertical:
-                                                                    8),
-                                                        isDense: true,
-                                                      ),
-                                                      onChanged: (v) {
-                                                        final val = int
-                                                                .tryParse(
-                                                                    v) ??
-                                                            0;
-                                                        _updateMark(
-                                                            student.id,
-                                                            subId,
-                                                            'theoryScore',
-                                                            val.clamp(
-                                                                0,
-                                                                maxT));
-                                                      },
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                              if (maxP > 0) ...[
-                                                const SizedBox(width: 8),
-                                                // Practical
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      Text(
-                                                          'Practical (/$maxP)',
-                                                          style: TextStyle(
-                                                              fontSize: 11,
-                                                              color: Colors
-                                                                  .grey[600])),
-                                                      const SizedBox(
-                                                          height: 4),
-                                                      TextFormField(
-                                                        key: ValueKey(
-                                                            'practical_${student.id}_$subId'),
-                                                        initialValue:
-                                                            currentP
-                                                                .toString(),
-                                                        keyboardType:
-                                                            TextInputType
-                                                                .number,
-                                                        decoration:
-                                                            const InputDecoration(
-                                                          border:
-                                                              OutlineInputBorder(),
-                                                          contentPadding:
-                                                              EdgeInsets.symmetric(
-                                                                  horizontal:
-                                                                      8,
-                                                                  vertical:
-                                                                      8),
-                                                          isDense: true,
-                                                        ),
-                                                        onChanged: (v) {
-                                                          final val =
-                                                              int.tryParse(
-                                                                      v) ??
-                                                                  0;
-                                                          _updateMark(
-                                                              student.id,
-                                                              subId,
-                                                              'practicalScore',
-                                                              val.clamp(
-                                                                  0,
-                                                                  maxP));
-                                                        },
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                              ],
-                                              const SizedBox(width: 8),
-                                              // Total
-                                              Column(
-                                                children: [
-                                                  Text('Total',
-                                                      style: TextStyle(
-                                                          fontSize: 11,
-                                                          color: Colors
-                                                              .grey[600])),
-                                                  const SizedBox(
-                                                      height: 4),
-                                                  Container(
-                                                    padding: const EdgeInsets
-                                                        .symmetric(
-                                                        horizontal: 12,
-                                                        vertical: 10),
-                                                    decoration:
-                                                        BoxDecoration(
-                                                      color:
-                                                          Colors.grey[100],
-                                                      borderRadius:
-                                                          BorderRadius
-                                                              .circular(6),
-                                                    ),
-                                                    child: Text(
-                                                      '${(_marksData[student.id]?[subId]?['totalScore'] as int?) ?? (currentT + currentP)}/${maxT + maxP}',
-                                                      style: const TextStyle(
-                                                          fontWeight:
-                                                              FontWeight
-                                                                  .bold,
-                                                          fontSize: 13),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                              ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
           ),
       ],
+      flexibleSpace: FlexibleSpaceBar(
+        background: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [AppTheme.primaryColor, AppTheme.primaryColor.withOpacity(0.85)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
-  Color _pctColor(double pct) {
-    if (pct >= 75) return Colors.green;
-    if (pct >= 50) return Colors.orange;
-    return Colors.red;
+  Widget _buildBody() {
+    return Column(children: [
+      _buildExamSelector(),
+      if (_selectedExamId != null && _subjectProgress.isNotEmpty)
+        _buildSubjectProgress(),
+      if (_selectedExamId != null && _examSubjects.isNotEmpty)
+        _buildSearchAndStats(),
+      if (_selectedExamId == null)
+        Expanded(child: _buildEmptyState(Icons.quiz_outlined, 'Select an exam to start entering marks')),
+      if (_selectedExamId != null && _examSubjects.isEmpty && !_isLoading)
+        Expanded(child: _buildEmptyState(Icons.lock_outline_rounded, 'No subjects available\nYou are not assigned to any subject for this class')),
+      if (_selectedExamId != null && _examSubjects.isNotEmpty)
+        Expanded(child: _buildStudentList()),
+    ]);
+  }
+
+  // ── Exam Selector ────────────────────────────────────────────────
+  Widget _buildExamSelector() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.school_rounded, size: 16, color: AppTheme.primaryColor),
+          const SizedBox(width: 6),
+          const Text('Select Exam', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+        ]),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(
+          value: _selectedExamId,
+          isExpanded: true,
+          decoration: InputDecoration(
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            hintText: 'Choose an exam…',
+            hintStyle: const TextStyle(fontSize: 13, color: Color(0xFF9CA3AF)),
+          ),
+          items: _exams.map((e) => DropdownMenuItem(
+            value: e.id,
+            child: Text(e.displayName ?? e.name, style: const TextStyle(fontSize: 13)),
+          )).toList(),
+          onChanged: (val) {
+            if (val == null || val == _selectedExamId) return;
+            setState(() { _selectedExamId = val; });
+            _resetData();
+            _loadData();
+          },
+        ),
+      ]),
+    );
+  }
+
+  // ── Subject Progress ─────────────────────────────────────────────
+  Widget _buildSubjectProgress() {
+    final doneCount = _subjectProgress.where((s) => (s['percentage'] as num? ?? 0) == 100).length;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.bar_chart_rounded, size: 15, color: Color(0xFF6B7280)),
+          const SizedBox(width: 6),
+          Text('Class Progress', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+          const Spacer(),
+          Text('$doneCount/${_subjectProgress.length} subjects complete',
+              style: const TextStyle(fontSize: 11, color: Color(0xFF9CA3AF))),
+        ]),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 80,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: _subjectProgress.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (ctx, i) {
+              final sp = _subjectProgress[i];
+              final pct = (sp['percentage'] as num? ?? 0).toDouble();
+              final done = pct == 100;
+              return Container(
+                width: 140,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6)],
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  Row(children: [
+                    Expanded(child: Text(sp['subjectName']?.toString() ?? '',
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+                        maxLines: 2, overflow: TextOverflow.ellipsis)),
+                    Icon(done ? Icons.verified_rounded : Icons.schedule_rounded,
+                        size: 13, color: done ? const Color(0xFF059669) : const Color(0xFFF59E0B)),
+                  ]),
+                  const SizedBox(height: 4),
+                  Text('${sp['enteredCount'] ?? 0}/${sp['totalStudents'] ?? 0} students',
+                      style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: pct / 100,
+                      backgroundColor: const Color(0xFFF3F4F6),
+                      color: done ? const Color(0xFF10B981) : pct > 0 ? const Color(0xFFF59E0B) : const Color(0xFFD1D5DB),
+                      minHeight: 5,
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: Text('${pct.toStringAsFixed(0)}%',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                            color: done ? const Color(0xFF059669) : const Color(0xFFF59E0B))),
+                  ),
+                ]),
+              );
+            },
+          ),
+        ),
+      ]),
+    );
+  }
+
+  // ── Search + stats bar ───────────────────────────────────────────
+  Widget _buildSearchAndStats() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6)],
+      ),
+      child: Row(children: [
+        const Icon(Icons.search_rounded, size: 18, color: Color(0xFF9CA3AF)),
+        const SizedBox(width: 8),
+        Expanded(
+          child: TextField(
+            onChanged: (v) => setState(() => _searchTerm = v),
+            decoration: const InputDecoration(
+              hintText: 'Search student…',
+              hintStyle: TextStyle(fontSize: 13, color: Color(0xFF9CA3AF)),
+              border: InputBorder.none,
+              isDense: true,
+            ),
+            style: const TextStyle(fontSize: 13),
+          ),
+        ),
+        if (!_hasEditPermission)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(color: const Color(0xFFF3F4F6), borderRadius: BorderRadius.circular(8)),
+            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.lock_outline_rounded, size: 12, color: Color(0xFF6B7280)),
+              SizedBox(width: 4),
+              Text('View Only', style: TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+            ]),
+          ),
+      ]),
+    );
+  }
+
+  // ── Student List ─────────────────────────────────────────────────
+  Widget _buildStudentList() {
+    final students = _filteredStudents;
+    if (students.isEmpty) {
+      return _buildEmptyState(Icons.person_search_rounded, 'No students found');
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      itemCount: students.length,
+      itemBuilder: (ctx, i) => _buildStudentCard(students[i]),
+    );
+  }
+
+  Widget _buildStudentCard(Map<String, dynamic> student) {
+    final sid = student['studentId']?.toString() ?? '';
+    final name = student['studentName']?.toString() ?? '';
+    final roll = student['rollNumber']?.toString() ?? '';
+    final admNo = student['admissionNo']?.toString() ?? '';
+    final subjs = (student['subjects'] as List? ?? []).cast<Map<String, dynamic>>();
+    final pct = _studentPercentage(sid, subjs);
+    final isDirty = _dirtyStudents.contains(sid);
+
+    // Compute total obtained & max for this student
+    int obtained = 0, maxTotal = 0;
+    for (final subj in subjs) {
+      final key = subj['examSubjectId']?.toString() ?? subj['subjectId']?.toString() ?? '';
+      final tm = _tempMarks[sid]?[key] ?? {};
+      obtained += (tm['theoryScore']    is int ? tm['theoryScore']    as int : int.tryParse(tm['theoryScore']?.toString() ?? '0') ?? 0)
+                + (tm['practicalScore'] is int ? tm['practicalScore'] as int : int.tryParse(tm['practicalScore']?.toString() ?? '0') ?? 0)
+                + (tm['ceMarks']        is int ? tm['ceMarks']        as int : int.tryParse(tm['ceMarks']?.toString() ?? '0') ?? 0);
+      maxTotal += ((subj['theoryMaxMarks'] ?? subj['termMaxMarks'] ?? 100) as num).toInt()
+               + ((subj['practicalMaxMarks'] ?? 0) as num).toInt()
+               + ((subj['ceMaxMarks'] ?? 0) as num).toInt();
+    }
+    final grade = _gradeInfo(obtained, maxTotal);
+    final initials = name.trim().split(' ').where((w) => w.isNotEmpty).take(2).map((w) => w[0].toUpperCase()).join();
+
+    return Container(
+      key: ValueKey('student_$sid'),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: isDirty ? Border.all(color: AppTheme.primaryColor.withOpacity(0.4), width: 1.5) : null,
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2))],
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          childrenPadding: EdgeInsets.zero,
+          leading: CircleAvatar(
+            backgroundColor: AppTheme.primaryColor.withOpacity(0.12),
+            radius: 20,
+            child: Text(initials, style: TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold, fontSize: 13)),
+          ),
+          title: Row(children: [
+            Expanded(child: Text(name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14))),
+            if (isDirty)
+              Container(
+                margin: const EdgeInsets.only(right: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text('Edited', style: TextStyle(fontSize: 10, color: AppTheme.primaryColor, fontWeight: FontWeight.w600)),
+              ),
+          ]),
+          subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('${roll.isNotEmpty ? "Roll: $roll  " : ""}${admNo.isNotEmpty ? "Adm: $admNo" : ""}',
+                style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+            const SizedBox(height: 4),
+            Row(children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: pct / 100,
+                    minHeight: 4,
+                    backgroundColor: const Color(0xFFF3F4F6),
+                    color: _pctColor(pct),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text('${pct.toStringAsFixed(1)}%',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _pctColor(pct))),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: (grade['color'] as Color).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(grade['grade'] as String,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: grade['color'] as Color)),
+              ),
+            ]),
+          ]),
+          children: subjs.map((subj) => _buildSubjectRow(sid, subj)).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSubjectRow(String studentId, Map<String, dynamic> subj) {
+    final key       = subj['examSubjectId']?.toString() ?? subj['subjectId']?.toString() ?? '';
+    final name      = subj['displayName']?.toString() ?? subj['subjectName']?.toString() ?? 'Subject';
+    final maxTheory = ((subj['theoryMaxMarks'] ?? subj['termMaxMarks'] ?? 100) as num).toInt();
+    final maxPrac   = ((subj['practicalMaxMarks'] ?? 0) as num).toInt();
+    final maxCE     = ((subj['ceMaxMarks'] ?? 0) as num).toInt();
+    final hasPrac   = subj['hasPractical'] == true && maxPrac > 0;
+    final hasCE     = subj['ceEnabled'] == true && maxCE > 0;
+    final canEdit   = _hasEditPermission && _canEditSubject(key);
+
+    final tm = _tempMarks[studentId]?[key] ?? {};
+    final isAbsent = tm['isAbsent'] as bool? ?? false;
+    final tVal = tm['theoryScore'];
+    final pVal = tm['practicalScore'];
+    final cVal = tm['ceMarks'];
+
+    int tInt = tVal is int ? tVal : int.tryParse(tVal?.toString() ?? '') ?? 0;
+    int pInt = pVal is int ? pVal : int.tryParse(pVal?.toString() ?? '') ?? 0;
+    int cInt = cVal is int ? cVal : int.tryParse(cVal?.toString() ?? '') ?? 0;
+    final total    = tInt + pInt + cInt;
+    final maxTotal = maxTheory + maxPrac + maxCE;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Subject header
+        Row(children: [
+          Expanded(
+            child: Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+          ),
+          if (!canEdit)
+            const Icon(Icons.lock_outline_rounded, size: 14, color: Color(0xFF9CA3AF)),
+          // Absent toggle
+          if (canEdit) ...[
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: () => _handleAbsentToggle(studentId, key),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isAbsent ? const Color(0xFFFEE2E2) : const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: isAbsent ? const Color(0xFFFCA5A5) : const Color(0xFFE5E7EB)),
+                ),
+                child: Text(isAbsent ? 'Absent' : 'Mark Absent',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isAbsent ? const Color(0xFFDC2626) : const Color(0xFF6B7280))),
+              ),
+            ),
+          ],
+        ]),
+        const SizedBox(height: 10),
+        // Score inputs
+        Row(children: [
+          _scoreField(
+            fieldKey: 'theory_${studentId}_${key}_$isAbsent',
+            label: 'Theory /$maxTheory',
+            value: isAbsent ? '0' : (tVal?.toString() ?? ''),
+            enabled: canEdit && !isAbsent,
+            onChanged: (v) => _handleMarkChange(studentId, key, 'theoryScore', v),
+          ),
+          if (hasPrac) ...[
+            const SizedBox(width: 8),
+            _scoreField(
+              fieldKey: 'prac_${studentId}_${key}_$isAbsent',
+              label: 'Practical /$maxPrac',
+              value: isAbsent ? '0' : (pVal?.toString() ?? ''),
+              enabled: canEdit && !isAbsent,
+              onChanged: (v) => _handleMarkChange(studentId, key, 'practicalScore', v),
+            ),
+          ],
+          if (hasCE) ...[
+            const SizedBox(width: 8),
+            _scoreField(
+              fieldKey: 'ce_${studentId}_${key}_$isAbsent',
+              label: 'CE /$maxCE',
+              value: isAbsent ? '0' : (cVal?.toString() ?? ''),
+              enabled: canEdit && !isAbsent,
+              onChanged: (v) => _handleMarkChange(studentId, key, 'ceMarks', v),
+            ),
+          ],
+          const SizedBox(width: 8),
+          // Total chip
+          Column(children: [
+            const Text('Total', style: TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Text('$total/$maxTotal',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+            ),
+          ]),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _scoreField({
+    required String fieldKey,
+    required String label,
+    required String value,
+    required bool enabled,
+    required ValueChanged<String> onChanged,
+  }) {
+    return Expanded(
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
+        const SizedBox(height: 4),
+        TextFormField(
+          key: ValueKey(fieldKey),
+          initialValue: value,
+          enabled: enabled,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          decoration: InputDecoration(
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+            disabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFF3F4F6))),
+            filled: true,
+            fillColor: enabled ? Colors.white : const Color(0xFFF9FAFB),
+          ),
+          onChanged: onChanged,
+        ),
+      ]),
+    );
+  }
+
+  Widget _buildEmptyState(IconData icon, String msg) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, size: 56, color: Colors.grey[300]),
+          const SizedBox(height: 16),
+          Text(msg, textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.grey[500], height: 1.5)),
+        ]),
+      ),
+    );
   }
 }

@@ -12,10 +12,9 @@ class AttendanceService {
     required int year,
     required int month,
   }) async {
-    final response = await _api.get('${ApiConfig.attendanceByClass}/$classId', params: {
-      'year': year,
-      'month': month,
-    });
+    final response = await _api.get('${ApiConfig.attendanceByClass}/$classId',
+        params: {'year': year, 'month': month},
+        noCache: true); // always fetch fresh — never use cached attendance data
     return response.data;
   }
 
@@ -34,16 +33,19 @@ class AttendanceService {
 
   Future<Map<String, dynamic>> bulkCreateAttendance(List<Map<String, dynamic>> attendanceList) async {
     final validList = attendanceList.where((item) {
-      return item['studentId'] != null && 
-             item['studentId'] != '' && 
+      return item['studentId'] != null &&
+             item['studentId'] != '' &&
              item['studentName'] != null &&
              item['classId'] != null;
     }).toList();
-    
+
     if (validList.isEmpty) {
       throw Exception('No valid attendance records to save');
     }
-    
+
+    // Invalidate attendance cache so next fetch always hits the server
+    _api.invalidateCache('/attendance');
+
     final response = await _api.post(ApiConfig.attendanceBulk, data: {
       'attendanceList': validList,
     });
