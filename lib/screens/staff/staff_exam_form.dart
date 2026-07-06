@@ -74,6 +74,8 @@ class _StaffExamFormPageState extends State<StaffExamFormPage> {
             'passingMarks': s['passingMarks'] ?? 40,
             'practicalMarks': s['practicalMarks'] ?? 0,
             'ceMaxMarks': s['ceMaxMarks'] ?? 0,
+            'roomNumber': s['roomNumber'] ?? '',
+            'building': s['building'] ?? '',
           });
         }
       }
@@ -97,6 +99,8 @@ class _StaffExamFormPageState extends State<StaffExamFormPage> {
         'passingMarks': 40,
         'practicalMarks': 0,
         'ceMaxMarks': 0,
+        'roomNumber': '',
+        'building': '',
       });
     });
   }
@@ -146,7 +150,9 @@ class _StaffExamFormPageState extends State<StaffExamFormPage> {
           'ceEnabled': (item['ceMaxMarks'] ?? 0) > 0,
           'ceMaxMarks': item['ceMaxMarks'] ?? 0,
           'cePassingMarks': 0,
-          'ceComponents': []
+          'ceComponents': [],
+          'roomNumber': item['roomNumber'] ?? '',
+          'building': item['building'] ?? ''
         }).toList()
       };
 
@@ -179,7 +185,8 @@ class _StaffExamFormPageState extends State<StaffExamFormPage> {
   }
 
   String _formatDisplayType(String str) {
-    return str.split('_').map((w) => w.length > 0 ? '\${w[0].toUpperCase()}\${w.substring(1)}' : '').join(' ');
+    if (str.isEmpty) return '';
+    return str.split('_').map((w) => w.length > 0 ? '${w[0].toUpperCase()}${w.substring(1)}' : '').join(' ');
   }
 
   @override
@@ -351,7 +358,7 @@ class _StaffExamFormPageState extends State<StaffExamFormPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Subject \${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text('Subject ${index + 1}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               IconButton(
                 icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
                 onPressed: () => _removeScheduleItem(index),
@@ -472,6 +479,34 @@ class _StaffExamFormPageState extends State<StaffExamFormPage> {
                   ),
                   keyboardType: TextInputType.number,
                   onChanged: (v) => item['ceMaxMarks'] = int.tryParse(v) ?? 0,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  initialValue: item['roomNumber'].toString(),
+                  decoration: InputDecoration(
+                    labelText: 'Room Number',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  onChanged: (v) => item['roomNumber'] = v,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextFormField(
+                  initialValue: item['building'].toString(),
+                  decoration: InputDecoration(
+                    labelText: 'Building',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  ),
+                  onChanged: (v) => item['building'] = v,
                 ),
               ),
             ],

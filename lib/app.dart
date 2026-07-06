@@ -3,6 +3,7 @@ import 'package:flutter_redux/flutter_redux.dart';
 import 'package:school_management/actions/auth_actions.dart';
 import 'package:school_management/screens/dashboard_screen.dart';
 import 'package:school_management/screens/login_screen.dart';
+import 'package:school_management/screens/parent_registration_screen.dart';
 import 'package:school_management/screens/splash_screen.dart';
 import 'package:school_management/utils/theme.dart';
 
@@ -139,7 +140,11 @@ class _SchoolAppState extends State<SchoolApp> {
           debugShowCheckedModeBanner: false,
           theme: _buildTheme(),
           navigatorKey: _navigatorKey,
-          home: const LoginScreen(),
+          initialRoute: '/login',
+          routes: {
+            '/login': (context) => const LoginScreen(),
+            '/register-parent': (context) => const ParentRegistrationScreen(),
+          },
           onGenerateRoute: _generateRoute,
         );
       },

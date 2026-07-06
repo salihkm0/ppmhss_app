@@ -298,33 +298,7 @@ class CustomDrawer extends StatelessWidget {
                             Navigator.pushNamed(context, '/staff/my-classes');
                           },
                         ),
-                        _buildModernMenuItem(
-                          context: context,
-                          icon: Icons.calendar_today_outlined,
-                          title: 'Attendance',
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.pushNamed(context, '/staff/attendance');
-                          },
-                        ),
-                        _buildModernMenuItem(
-                          context: context,
-                          icon: Icons.assignment_outlined,
-                          title: 'Exams',
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.pushNamed(context, '/staff/exams');
-                          },
-                        ),
-                        _buildModernMenuItem(
-                          context: context,
-                          icon: Icons.edit_note_outlined,
-                          title: 'Marks Entry',
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.pushNamed(context, '/staff/mark');
-                          },
-                        ),
+
                         _buildModernMenuItem(
                           context: context,
                           icon: Icons.work_outline,

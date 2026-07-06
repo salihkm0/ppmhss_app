@@ -6,6 +6,7 @@ import 'package:school_management/services/push_notification_service.dart';
 import 'package:school_management/store/app_state.dart';
 import 'package:school_management/models/user_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:school_management/actions/academic_year_actions.dart';
 
 // Simple Actions
 class LoginAction {
@@ -62,6 +63,13 @@ class SetSplashCompleteAction {
 
 class ClearAuthErrorAction {}
 
+class RegisterParentAction {
+  final Map<String, dynamic> parentData;
+  final Function(bool, String?) onResult;
+  
+  RegisterParentAction({required this.parentData, required this.onResult});
+}
+
 class SetLoadingAction {
   final bool isLoading;
   
@@ -107,6 +115,9 @@ ThunkAction<AppState> loginThunk(LoginAction action) {
         // Connect Socket.IO after successful login
         final socketService = SocketService();
         await socketService.connect(user.id, user.role, token, store);
+        
+        // Fetch global academic years
+        store.dispatch(fetchAcademicYearsThunk(FetchAcademicYearsAction(limit: 100)));
         
         store.dispatch(LoginSuccessAction(user: user, token: token));
         store.dispatch(ClearAuthErrorAction());
@@ -157,6 +168,10 @@ ThunkAction<AppState> getMeThunk(GetMeAction action) {
       final authService = AuthService();
       final user = await authService.getMe();
       print('✅ GetMe success: ${user.name}');
+      
+      // Fetch global academic years
+      store.dispatch(fetchAcademicYearsThunk(FetchAcademicYearsAction(limit: 100)));
+      
       store.dispatch(GetMeSuccessAction(user: user));
       store.dispatch(ClearAuthErrorAction());
       store.dispatch(SetSplashCompleteAction(complete: true));
@@ -164,6 +179,18 @@ ThunkAction<AppState> getMeThunk(GetMeAction action) {
       print('❌ GetMe error: $e');
       store.dispatch(GetMeFailureAction(error: e.toString().replaceFirst('Exception: ', '')));
       store.dispatch(SetSplashCompleteAction(complete: true));
+    }
+  };
+}
+
+ThunkAction<AppState> registerParentThunk(RegisterParentAction action) {
+  return (Store<AppState> store) async {
+    try {
+      final authService = AuthService();
+      await authService.registerParent(action.parentData);
+      action.onResult(true, null);
+    } catch (e) {
+      action.onResult(false, e.toString().replaceAll('Exception: ', ''));
     }
   };
 }

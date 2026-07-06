@@ -40,8 +40,6 @@ class _ExamsScreenState extends State<ExamsScreen> {
   }
 
   void _loadInitialData() {
-    final store = StoreProvider.of<AppState>(context, listen: false);
-    store.dispatch(fetchAcademicYearsThunk(FetchAcademicYearsAction(limit: 100)));
     _loadExams();
   }
 

@@ -2,10 +2,11 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ApiConfig {
-  // Using localhost for everything. 
-  // For physical Android devices, we use `adb reverse tcp:5055 tcp:5055` to route localhost over USB.
   static String get baseUrl {
-    return 'http://127.0.0.1:5055/api'; 
+    if (kIsWeb) return 'http://127.0.0.1:5055/api';
+    // 10.0.2.2 is the special alias to your host loopback interface (127.0.0.1) on Android emulators
+    if (Platform.isAndroid) return 'http://10.0.2.2:5055/api';
+    return 'http://127.0.0.1:5055/api'; // iOS Simulator and others
   }
   // static const String baseUrl = 'https://ppmhss-backend.onrender.com/api';
   static const int connectTimeout = 30000;
@@ -21,6 +22,7 @@ class ApiConfig {
   static const String logout = '/auth/logout';
   static const String me = '/auth/me';
   static const String changePassword = '/auth/change-password';
+  static const String registerParent = '/parents/register';
   
   // Student endpoints
   static const String students = '/students';

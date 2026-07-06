@@ -64,6 +64,8 @@ class ApiService {
     _dio.interceptors.add(InterceptorsWrapper(
       onRequest: (options, handler) async {
         final token = _prefs?.getString('token');
+        print('🌐 API Request: ${options.method} ${options.uri}');
+        print('🌐 Token available in prefs: ${token != null}');
         if (token != null) {
           options.headers['Authorization'] = 'Bearer $token';
         }

@@ -104,19 +104,6 @@ class _LoginScreenState extends State<LoginScreen> {
               
               // SafeArea for Content
               SafeArea(
-                child: CustomScrollView(
-                  slivers: [
-                    SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: Column(
-                        children: [
-                          const SizedBox(height: 16),
-                          // Mobile Logo Overlay
-                          Center(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.95),
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
@@ -167,7 +154,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                     
-                          const Expanded(child: SizedBox(height: 32)),
+                    const Spacer(),
                     
                     // Form Area
                     Container(
@@ -466,9 +453,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
                   ],
-                ),
-              ),
-            ],
                 ),
               ),
             ],

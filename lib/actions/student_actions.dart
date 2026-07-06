@@ -147,12 +147,17 @@ ThunkAction<AppState> fetchStudentsThunk(FetchStudentsAction action) {
     
     try {
       final studentService = StudentService();
+      
+      // Use global academic year if not explicitly provided
+      final currentYearId = store.state.academicYears.currentAcademicYear?.id;
+      final effectiveAcademicYearId = action.academicYearId ?? currentYearId;
+      
       final response = await studentService.getStudents(
         page: action.page,
         limit: action.limit,
         search: action.search,
         classId: action.classId,
-        academicYearId: action.academicYearId,
+        academicYearId: effectiveAcademicYearId,
         status: action.status,
       );
       

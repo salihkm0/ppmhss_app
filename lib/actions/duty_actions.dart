@@ -87,11 +87,40 @@ ThunkAction<AppState> fetchMyDutiesThunk() {
 
       final dutyService = DutyService();
       final response = await dutyService.getMyDuties(staffId: staffId, limit: 200);
-      final List<DutyModel> duties = ((response['data'] as List?) ?? [])
-          .map((json) => DutyModel.fromJson(json))
-          .toList();
+      
+      final List<DutyModel> parsedDuties = [];
+      final rawData = response['data'] as List? ?? [];
+      
+      for (final json in rawData) {
+        final String baseId = json['_id'] ?? '';
+        final String baseDutyType = json['dutyType'] ?? '';
+        final String? baseLocation = json['location'];
+        final String? baseClassName = json['className'] ?? json['location'];
+        final String baseStatus = json['status'] ?? 'assigned';
+        final String? baseRemarks = json['remarks'];
+        
+        final List? dutyRecords = json['duties'] as List?;
+        if (dutyRecords != null && dutyRecords.isNotEmpty) {
+          for (int i = 0; i < dutyRecords.length; i++) {
+            final record = dutyRecords[i];
+            parsedDuties.add(DutyModel(
+              id: baseId,
+              dutyType: baseDutyType,
+              date: record['date'] != null ? DateTime.parse(record['date']) : DateTime.now(),
+              shift: record['shift'] ?? 'full',
+              location: record['room'] ?? baseLocation,
+              className: baseClassName,
+              status: baseStatus,
+              remarks: baseRemarks,
+            ));
+          }
+        } else {
+          // Fallback if duties array is missing or empty
+          parsedDuties.add(DutyModel.fromJson(json));
+        }
+      }
 
-      store.dispatch(FetchDutiesSuccessAction(duties: duties));
+      store.dispatch(FetchDutiesSuccessAction(duties: parsedDuties));
     } catch (e) {
       store.dispatch(FetchDutiesFailureAction(error: e.toString()));
     }

@@ -46,7 +46,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
   void _loadClasses() {
     final store = StoreProvider.of<AppState>(context, listen: false);
     store.dispatch(fetchClassesThunk(FetchClassesAction(limit: 100)));
-    store.dispatch(fetchAcademicYearsThunk(FetchAcademicYearsAction(limit: 100)));
   }
 
   Future<void> _loadAttendance() async {

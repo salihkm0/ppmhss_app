@@ -1,4 +1,5 @@
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:school_management/config/api_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'package:school_management/models/notification_model.dart';
@@ -6,6 +7,7 @@ import 'package:school_management/actions/notification_actions.dart';
 import 'package:redux/redux.dart';
 import 'package:school_management/store/app_state.dart';
 import 'package:school_management/main.dart'; // Add for navigatorKey
+import 'dart:async';
 
 class SocketService {
   static final SocketService _instance = SocketService._internal();
@@ -20,6 +22,7 @@ class SocketService {
   bool _isConnecting = false;
   Store<AppState>? _store;
   Function(Map<String, dynamic>)? _onNotificationCallback;
+  Timer? _heartbeatTimer;
   
   // Event listeners
   final Map<String, List<Function>> _listeners = {};
@@ -119,7 +122,11 @@ class SocketService {
     _currentUserId = userId;
     _currentUserRole = userRole;
 
-    final String serverUrl = 'https://ppmhss-backend.onrender.com';
+    // Extract base URL without the /api suffix for Socket.IO
+    final String apiBaseUrl = ApiConfig.baseUrl;
+    final String serverUrl = apiBaseUrl.endsWith('/api') 
+        ? apiBaseUrl.substring(0, apiBaseUrl.length - 4) 
+        : apiBaseUrl;
     
     debugPrint('Connecting to socket server: $serverUrl');
     debugPrint('User ID: $userId, Role: $userRole');
@@ -162,6 +169,13 @@ class SocketService {
           _socket!.emit('subscribe:dashboard');
         }
         
+        _heartbeatTimer?.cancel();
+        _heartbeatTimer = Timer.periodic(const Duration(seconds: 25), (timer) {
+          if (_isConnected) {
+            sendHeartbeat();
+          }
+        });
+        
         _emitToListeners('connect', null);
       });
 
@@ -170,6 +184,7 @@ class SocketService {
         _isConnected = false;
         _isConnecting = false;
         _reconnectAttempts++;
+        _heartbeatTimer?.cancel();
         
         if (_reconnectAttempts > 3) {
           _emitToListeners('error', error);
@@ -180,6 +195,7 @@ class SocketService {
         debugPrint('❌ Socket.IO disconnected: $reason');
         _isConnected = false;
         _isConnecting = false;
+        _heartbeatTimer?.cancel();
         _emitToListeners('disconnect', reason);
       });
 
@@ -258,9 +274,11 @@ class SocketService {
   }
 
   void disconnect() {
+    _heartbeatTimer?.cancel();
     if (_socket != null) {
+      debugPrint('Disconnecting socket...');
       _socket!.disconnect();
-      _socket!.dispose();
+      _socket!.destroy();
       _socket = null;
     }
     _isConnected = false;
@@ -270,7 +288,7 @@ class SocketService {
     _reconnectAttempts = 0;
     _listeners.clear();
     _store = null;
-    debugPrint('Socket disconnected');
+    debugPrint('Socket disconnected and cleaned up');
   }
 
   void emit(String event, dynamic data) {

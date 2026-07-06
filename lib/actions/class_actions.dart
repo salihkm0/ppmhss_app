@@ -120,11 +120,16 @@ ThunkAction<AppState> fetchClassesThunk(FetchClassesAction action) {
     store.dispatch(action);
     try {
       final classService = ClassService();
+      
+      // Use global academic year if not explicitly provided
+      final currentYearId = store.state.academicYears.currentAcademicYear?.id;
+      final effectiveAcademicYearId = action.academicYearId ?? currentYearId;
+      
       final response = await classService.getClasses(
         page: action.page,
         limit: action.limit,
         search: action.search,
-        academicYearId: action.academicYearId,
+        academicYearId: effectiveAcademicYearId,
       );
       
       final List<ClassModel> classes = (response['data'] as List)

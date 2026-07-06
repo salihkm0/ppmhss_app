@@ -39,6 +39,19 @@ class AuthService {
     }
   }
 
+  Future<Map<String, dynamic>> registerParent(Map<String, dynamic> parentData) async {
+    try {
+      final response = await _api.post(ApiConfig.registerParent, data: parentData);
+      return response.data;
+    } on DioException catch (e) {
+      print('Register Parent error: ${e.response?.data}');
+      if (e.response?.data != null) {
+        throw Exception(e.response?.data['message'] ?? 'Registration failed');
+      }
+      throw Exception('Network error: ${e.message}');
+    }
+  }
+
   Future<Map<String, dynamic>> logout() async {
     try {
       final response = await _api.post(ApiConfig.logout);

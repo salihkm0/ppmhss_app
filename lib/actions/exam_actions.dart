@@ -210,11 +210,16 @@ ThunkAction<AppState> fetchExamsThunk(FetchExamsAction action) {
     store.dispatch(action);
     try {
       final examService = ExamService();
+      
+      // Use global academic year if not explicitly provided
+      final currentYearId = store.state.academicYears.currentAcademicYear?.id;
+      final effectiveAcademicYearId = action.academicYearId ?? currentYearId;
+      
       final response = await examService.getExams(
         page: action.page,
         limit: action.limit,
         search: action.search,
-        academicYearId: action.academicYearId,
+        academicYearId: effectiveAcademicYearId,
       );
       
       final List<ExamModel> exams = (response['data'] as List)

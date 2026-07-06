@@ -48,7 +48,6 @@ class _StudentListScreenState extends State<StudentListScreen> {
   void _loadInitialData() {
     final store = StoreProvider.of<AppState>(context, listen: false);
     store.dispatch(fetchClassesThunk(FetchClassesAction(limit: 100)));
-    store.dispatch(fetchAcademicYearsThunk(FetchAcademicYearsAction(limit: 100)));
     _loadStudents();
   }
 
