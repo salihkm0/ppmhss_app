@@ -66,11 +66,23 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
         ],
       ),
       body: StoreConnector<AppState, _ExamViewModel>(
-        converter: (store) => _ExamViewModel(
-          exams: store.state.exams.exams,
-          isLoading: store.state.exams.isLoading,
-          error: store.state.exams.error,
-        ),
+        converter: (store) {
+          final allExams = store.state.exams.exams;
+          final filteredExams = widget.classId.isNotEmpty 
+              ? allExams.where((exam) {
+                  return exam.classIds?.any((c) {
+                    final cId = (c is Map) ? (c['_id'] ?? c['id']) : c.toString();
+                    return cId == widget.classId;
+                  }) ?? false;
+                }).toList()
+              : allExams;
+              
+          return _ExamViewModel(
+            exams: filteredExams,
+            isLoading: store.state.exams.isLoading,
+            error: store.state.exams.error,
+          );
+        },
         builder: (context, vm) {
           if (vm.isLoading && vm.exams.isEmpty) {
             return const Center(child: LoadingWidget());

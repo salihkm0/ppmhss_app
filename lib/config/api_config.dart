@@ -3,12 +3,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ApiConfig {
   static String get baseUrl {
-    if (kIsWeb) return 'http://127.0.0.1:5055/api';
-    // 10.0.2.2 is the special alias to your host loopback interface (127.0.0.1) on Android emulators
-    if (Platform.isAndroid) return 'http://10.0.2.2:5055/api';
-    return 'http://127.0.0.1:5055/api'; // iOS Simulator and others
+    return 'https://manage.ppmhsskottukkara.com/api';
   }
-  // static const String baseUrl = 'https://ppmhss-backend.onrender.com/api';
   static const int connectTimeout = 30000;
   static const int receiveTimeout = 30000;
 

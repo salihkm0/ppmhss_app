@@ -108,7 +108,7 @@ class _NotificationListScreenState extends State<NotificationListScreen> {
     return Scaffold(
       appBar: CustomAppBar(
         title: 'Notifications',
-        showBackButton: true,
+        showBackButton: false,
         actions: [
           IconButton(
             icon: const Icon(Icons.checklist),

@@ -8,6 +8,7 @@ import 'package:school_management/widgets/common/custom_button.dart';
 import 'package:school_management/widgets/common/loading_widget.dart';
 import 'package:school_management/widgets/common/popup_notification.dart';
 import 'package:school_management/utils/theme.dart';
+import 'package:school_management/models/exam_model.dart';
 
 class MarksEntryScreen extends StatefulWidget {
   final String? examId;
@@ -167,7 +168,13 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                               child: Text('Select Exam'),
                             ),
                             isExpanded: true,
-                            items: state.exams.exams.map((exam) {
+                            items: state.exams.exams.where((exam) {
+                              if (_selectedClassId == null) return true;
+                              return exam.classIds?.any((c) {
+                                final cId = (c is Map) ? (c['_id'] ?? c['id']) : c.toString();
+                                return cId == _selectedClassId;
+                              }) ?? false;
+                            }).map((exam) {
                               return DropdownMenuItem(
                                 value: exam.id,
                                 child: Text(exam.displayName ?? exam.name),
@@ -198,7 +205,16 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                               child: Text('Select Class'),
                             ),
                             isExpanded: true,
-                            items: state.classes.classes.map((classObj) {
+                            items: state.classes.classes.where((cls) {
+                              if (_selectedExamId == null) return true;
+                              final examList = state.exams.exams.where((e) => e.id == _selectedExamId).toList();
+                              if (examList.isEmpty) return true;
+                              final exam = examList.first;
+                              return exam.classIds?.any((c) {
+                                final cId = (c is Map) ? (c['_id'] ?? c['id']) : c.toString();
+                                return cId == cls.id;
+                              }) ?? false;
+                            }).map((classObj) {
                               return DropdownMenuItem(
                                 value: classObj.id,
                                 child: Text(classObj.displayName ?? classObj.name),

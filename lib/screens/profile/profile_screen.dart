@@ -59,8 +59,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           final user = state.auth.user;
           
           if (user == null) {
-            return const Center(
-              child: Text('No user data available'),
+            return const Scaffold(
+              body: Center(
+                child: Text('No user data available'),
+              ),
             );
           }
           
@@ -70,9 +72,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _phoneController.text = user.phone ?? '';
           }
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+          return Scaffold(
+            appBar: const CustomAppBar(
+              title: 'Profile',
+              showBackButton: true,
+            ),
+            body: SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
               // Profile Avatar
                         Center(
                           child: Container(
@@ -220,7 +229,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   isFullWidth: true,
                 ),
               ],
-            );
+            ),
+          ),
+          );
         },
       );
   }

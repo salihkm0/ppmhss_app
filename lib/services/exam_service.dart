@@ -10,6 +10,7 @@ class ExamService {
     int limit = 20,
     String? search,
     String? academicYearId,
+    bool isStaff = false,
   }) async {
     final params = {
       'page': page,
@@ -17,7 +18,8 @@ class ExamService {
       if (search != null && search.isNotEmpty) 'search': search,
       if (academicYearId != null && academicYearId.isNotEmpty) 'academicYearId': academicYearId,
     };
-    final response = await _api.get(ApiConfig.exams, params: params);
+    final endpoint = isStaff ? '${ApiConfig.exams}/staff/exams' : ApiConfig.exams;
+    final response = await _api.get(endpoint, params: params);
     return response.data;
   }
 
