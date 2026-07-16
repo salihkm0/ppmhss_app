@@ -361,8 +361,10 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
                     itemCount: exam.classIds!.length,
                     itemBuilder: (ctx, i) {
                       final c = exam.classIds![i];
-                    final cId = (c is Map) ? (c['_id'] ?? c['id'] ?? '') : c.toString();
-                    final cName = (c is Map) ? (c['name'] ?? 'Class') : 'Class';
+                      final cId = (c is Map) ? (c['_id'] ?? c['id'] ?? '') : c.toString();
+                      final cName = (c is Map) 
+                          ? (c['displayName'] ?? (c['section'] != null ? '${c['name']} - ${c['section']}' : c['name']) ?? 'Class') 
+                          : 'Class';
                     return ListTile(
                       title: Text(cName),
                       trailing: const Icon(Icons.chevron_right),
