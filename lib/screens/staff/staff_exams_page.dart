@@ -355,12 +355,12 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
                   child: Text('Select Class for Marks Entry', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
                 const Divider(height: 1),
-                ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: exam.classIds!.length,
-                  itemBuilder: (ctx, i) {
-                    final c = exam.classIds![i];
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: exam.classIds!.length,
+                    itemBuilder: (ctx, i) {
+                      final c = exam.classIds![i];
                     final cId = (c is Map) ? (c['_id'] ?? c['id'] ?? '') : c.toString();
                     final cName = (c is Map) ? (c['name'] ?? 'Class') : 'Class';
                     return ListTile(

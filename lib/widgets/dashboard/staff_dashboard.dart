@@ -149,7 +149,7 @@ class _StaffDashboardState extends State<StaffDashboard> {
                     const SizedBox(height: 10),
                     _QuickActionsRow(
                       onAttendance: () => widget.onSwitchTab?.call(1),
-                      onMarks: () => widget.onSwitchTab?.call(1),
+                      onMarks: () => widget.onSwitchTab?.call(2),
                       onExams: () => widget.onSwitchTab?.call(2),
                       onDuties: () => widget.onSwitchTab?.call(3),
                     ),
