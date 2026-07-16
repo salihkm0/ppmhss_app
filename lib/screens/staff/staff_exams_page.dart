@@ -204,19 +204,7 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => StaffMarksEntryPage(
-                            classId: widget.classId,
-                            className: widget.className,
-                            examId: exam.id,
-                            examName: exam.displayName ?? exam.name,
-                          ),
-                        ),
-                      );
-                    },
+                    onPressed: () => _onEnterMarksTapped(context, exam),
                     icon: const Icon(Icons.edit_note, size: 18),
                     label: const Text('Enter Marks'),
                     style: ElevatedButton.styleFrom(
@@ -310,6 +298,87 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
 
   String _statusLabel(String status) {
     return status[0].toUpperCase() + status.substring(1);
+  }
+
+  void _onEnterMarksTapped(BuildContext context, ExamModel exam) {
+    String targetClassId = widget.classId;
+    String targetClassName = widget.className;
+
+    if (targetClassId.isEmpty && exam.classIds != null && exam.classIds!.isNotEmpty) {
+      if (exam.classIds!.length == 1) {
+        final c = exam.classIds![0];
+        targetClassId = (c is Map) ? (c['_id'] ?? c['id'] ?? '') : c.toString();
+        targetClassName = (c is Map) ? (c['name'] ?? 'Class') : 'Class';
+        _navigateToMarksEntry(context, exam, targetClassId, targetClassName);
+      } else {
+        _showClassSelectionSheet(context, exam);
+      }
+    } else {
+      _navigateToMarksEntry(context, exam, targetClassId, targetClassName);
+    }
+  }
+
+  void _navigateToMarksEntry(BuildContext context, ExamModel exam, String classId, String className) {
+    if (classId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a class first.')));
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StaffMarksEntryPage(
+          classId: classId,
+          className: className,
+          examId: exam.id,
+          examName: exam.displayName ?? exam.name,
+        ),
+      ),
+    );
+  }
+
+  void _showClassSelectionSheet(BuildContext context, ExamModel exam) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 16.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.all(16.0),
+                  child: Text('Select Class for Marks Entry', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+                const Divider(height: 1),
+                ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: exam.classIds!.length,
+                  itemBuilder: (ctx, i) {
+                    final c = exam.classIds![i];
+                    final cId = (c is Map) ? (c['_id'] ?? c['id'] ?? '') : c.toString();
+                    final cName = (c is Map) ? (c['name'] ?? 'Class') : 'Class';
+                    return ListTile(
+                      title: Text(cName),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _navigateToMarksEntry(context, exam, cId, cName);
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 

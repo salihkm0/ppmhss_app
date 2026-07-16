@@ -226,7 +226,7 @@ ThunkAction<AppState> fetchTeacherClassTeacherClassesThunk() {
       if (teacherId.isEmpty) {
         try {
           final staffService = StaffService();
-          final staffResponse = await staffService.getStaff(limit: 1);
+          final staffResponse = await staffService.getStaff(limit: 1000);
           // Try getting staff where userId matches
           final staffList = staffResponse['data'] as List? ?? [];
           for (final s in staffList) {

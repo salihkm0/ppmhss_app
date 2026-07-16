@@ -69,7 +69,7 @@ ThunkAction<AppState> fetchMyDutiesThunk() {
       if (staffId.isEmpty) {
         try {
           final staffService = StaffService();
-          final staffResponse = await staffService.getStaff(limit: 200);
+          final staffResponse = await staffService.getStaff(limit: 1000);
           final staffList = staffResponse['data'] as List? ?? [];
           for (final s in staffList) {
             if ((s['userId']?['_id'] ?? s['userId'])?.toString() == user.id) {
