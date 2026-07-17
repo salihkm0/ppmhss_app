@@ -49,6 +49,7 @@ class StudentService {
     final response = await _api.get(
       ApiConfig.students,
       params: {'classId': classId, 'limit': 500, 'page': 1},
+      noCache: true,
     );
     final data = response.data;
     // Backend returns { success, data: [...], pagination: {...} }
@@ -109,5 +110,18 @@ class StudentService {
   Future<Map<String, dynamic>> promoteStudents(Map<String, dynamic> promotionData) async {
     final response = await _api.post(ApiConfig.studentsPromote, data: promotionData);
     return response.data;
+  }
+
+  Future<void> bulkUpdateRollNumbers({
+    required String classId,
+    required List<Map<String, dynamic>> updates,
+  }) async {
+    await _api.put(
+      '/students/bulk-update-roll-numbers',
+      data: {
+        'classId': classId,
+        'updates': updates,
+      },
+    );
   }
 }

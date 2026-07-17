@@ -13,6 +13,7 @@ import 'package:school_management/widgets/common/error_widget.dart';
 import 'package:school_management/screens/staff/staff_attendance_page.dart';
 import 'package:school_management/screens/staff/staff_marks_entry.dart';
 import 'package:school_management/screens/staff/staff_exams_page.dart';
+import 'package:school_management/screens/classes/bulk_roll_number_dialog.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Design Tokens
@@ -196,6 +197,22 @@ class _MyClassesPageState extends State<MyClassesPage>
     );
   }
 
+  void _showBulkRollNumberUpdate(ClassModel classModel, List<StudentModel> students) {
+    showDialog(
+      context: context,
+      builder: (context) => BulkRollNumberDialog(
+        classModel: classModel,
+        students: students,
+        onSaved: () {
+          _loadData();
+          if (_activeClass != null) {
+            _loadStudents(_activeClass!.id);
+          }
+        },
+      ),
+    );
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
@@ -282,6 +299,7 @@ class _MyClassesPageState extends State<MyClassesPage>
                           onAttendance: _goAttendance,
                           onExams: _goExams,
                           onMarks: _goMarks,
+                          onRollNo: () => _showBulkRollNumberUpdate(_activeClass!, _students),
                         ),
                         const SizedBox(height: 24),
                       ],
@@ -491,10 +509,12 @@ class _QuickActionsRow extends StatelessWidget {
   final VoidCallback onAttendance;
   final VoidCallback onExams;
   final VoidCallback onMarks;
+  final VoidCallback onRollNo;
   const _QuickActionsRow({
     required this.onAttendance,
     required this.onExams,
     required this.onMarks,
+    required this.onRollNo,
   });
 
   @override
@@ -526,6 +546,15 @@ class _QuickActionsRow extends StatelessWidget {
           color: _C.teal,
           bg: _C.teal10,
           onTap: onMarks,
+        )),
+        const SizedBox(width: 10),
+        Expanded(child: _ActionCard(
+          icon: Icons.numbers_rounded,
+          title: 'Roll No',
+          subtitle: 'Update',
+          color: _C.sky,
+          bg: _C.sky10,
+          onTap: onRollNo,
         )),
       ],
     );

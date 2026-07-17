@@ -114,6 +114,18 @@ class FetchTeacherClassTeacherClassesFailureAction {
   FetchTeacherClassTeacherClassesFailureAction({required this.error});
 }
 
+class FetchTeacherClassesAction {}
+
+class FetchTeacherClassesSuccessAction {
+  final List<ClassModel> classes;
+  FetchTeacherClassesSuccessAction({required this.classes});
+}
+
+class FetchTeacherClassesFailureAction {
+  final String error;
+  FetchTeacherClassesFailureAction({required this.error});
+}
+
 // Thunk Actions
 ThunkAction<AppState> fetchClassesThunk(FetchClassesAction action) {
   return (Store<AppState> store) async {
@@ -257,6 +269,56 @@ ThunkAction<AppState> fetchTeacherClassTeacherClassesThunk() {
       store.dispatch(FetchTeacherClassTeacherClassesSuccessAction(classes: classes));
     } catch (e) {
       store.dispatch(FetchTeacherClassTeacherClassesFailureAction(error: e.toString()));
+    }
+  };
+}
+
+ThunkAction<AppState> fetchTeacherClassesThunk() {
+  return (Store<AppState> store) async {
+    store.dispatch(FetchTeacherClassesAction());
+    try {
+      final user = store.state.auth.user;
+      if (user == null) {
+        store.dispatch(FetchTeacherClassesFailureAction(
+          error: 'Not authenticated',
+        ));
+        return;
+      }
+
+      String teacherId = user.staffId ?? '';
+
+      if (teacherId.isEmpty) {
+        try {
+          final staffService = StaffService();
+          final staffResponse = await staffService.getStaff(limit: 1000);
+          final staffList = staffResponse['data'] as List? ?? [];
+          for (final s in staffList) {
+            if ((s['userId']?['_id'] ?? s['userId'])?.toString() == user.id) {
+              teacherId = s['_id']?.toString() ?? '';
+              break;
+            }
+          }
+        } catch (_) {
+        }
+      }
+
+      if (teacherId.isEmpty) {
+        store.dispatch(FetchTeacherClassesFailureAction(
+          error: 'Could not determine staff ID. Please contact admin.',
+        ));
+        return;
+      }
+
+      final staffService = StaffService();
+      final response = await staffService.getTeacherClasses(teacherId, null);
+      final rawData = response['data'];
+      final List<ClassModel> classes = (rawData as List? ?? [])
+          .map((json) => ClassModel.fromJson(json as Map<String, dynamic>))
+          .toList();
+
+      store.dispatch(FetchTeacherClassesSuccessAction(classes: classes));
+    } catch (e) {
+      store.dispatch(FetchTeacherClassesFailureAction(error: e.toString()));
     }
   };
 }

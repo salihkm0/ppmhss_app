@@ -331,6 +331,7 @@ class NotificationState {
 // ==================== CLASS STATE ====================
 class ClassState {
   final List<ClassModel> classes;
+  final List<ClassModel> teacherClasses;
   final List<ClassModel> teacherClassTeacherClasses;
   final ClassModel? currentClass;
   final bool isLoading;
@@ -341,6 +342,7 @@ class ClassState {
 
   ClassState({
     this.classes = const [],
+    this.teacherClasses = const [],
     this.teacherClassTeacherClasses = const [],
     this.currentClass,
     this.isLoading = false,
@@ -354,6 +356,7 @@ class ClassState {
 
   ClassState copyWith({
     List<ClassModel>? classes,
+    List<ClassModel>? teacherClasses,
     List<ClassModel>? teacherClassTeacherClasses,
     ClassModel? currentClass,
     bool? isLoading,
@@ -364,6 +367,7 @@ class ClassState {
   }) {
     return ClassState(
       classes: classes ?? this.classes,
+      teacherClasses: teacherClasses ?? this.teacherClasses,
       teacherClassTeacherClasses: teacherClassTeacherClasses ?? this.teacherClassTeacherClasses,
       currentClass: currentClass ?? this.currentClass,
       isLoading: isLoading ?? this.isLoading,

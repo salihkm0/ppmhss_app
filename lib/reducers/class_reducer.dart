@@ -86,6 +86,21 @@ ClassState classReducer(ClassState state, dynamic action) {
   if (action is FetchTeacherClassTeacherClassesFailureAction) {
     return state.copyWith(isLoading: false, error: action.error);
   }
+  if (action is FetchTeacherClassesAction) {
+    return state.copyWith(isLoading: true);
+  }
+  
+  if (action is FetchTeacherClassesSuccessAction) {
+    return state.copyWith(
+      teacherClasses: action.classes,
+      isLoading: false,
+      error: null,
+    );
+  }
+  
+  if (action is FetchTeacherClassesFailureAction) {
+    return state.copyWith(isLoading: false, error: action.error);
+  }
   
   return state;
 }

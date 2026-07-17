@@ -47,10 +47,24 @@ class StaffService {
       if (academicYearId != null && academicYearId.isNotEmpty) {
         queryParams['academicYearId'] = academicYearId;
       }
-      final response = await _api.get('/classes/teacher/$teacherId/classes', params: queryParams);
+      final response = await _api.get('/classes/teacher/$teacherId/class-teacher-classes', params: queryParams);
       return response.data;
     } catch (e) {
       print('Error fetching teacher class teacher classes: $e');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> getTeacherClasses(String teacherId, String? academicYearId) async {
+    try {
+      final queryParams = <String, dynamic>{};
+      if (academicYearId != null && academicYearId.isNotEmpty) {
+        queryParams['academicYearId'] = academicYearId;
+      }
+      final response = await _api.get('/classes/teacher/$teacherId/classes', params: queryParams);
+      return response.data;
+    } catch (e) {
+      print('Error fetching teacher classes: $e');
       rethrow;
     }
   }

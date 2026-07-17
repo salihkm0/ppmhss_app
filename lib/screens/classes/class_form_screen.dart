@@ -26,6 +26,7 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
   final _sectionController = TextEditingController();
   final _capacityController = TextEditingController();
   String? _selectedYearId;
+  String _studentSortPreference = 'alphabetic';
   bool _isLoading = false;
   bool _isEditing = false;
 
@@ -64,6 +65,7 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
       'section': _sectionController.text.isEmpty ? null : _sectionController.text,
       'capacity': int.tryParse(_capacityController.text),
       'academicYearId': _selectedYearId,
+      'studentSortPreference': _studentSortPreference,
     };
     
     if (_isEditing && widget.classId != null) {
@@ -99,6 +101,9 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
             _sectionController.text = classObj.section ?? '';
             _capacityController.text = classObj.capacity?.toString() ?? '';
             _selectedYearId = classObj.academicYearId;
+            if (classObj.studentSortPreference != null) {
+              _studentSortPreference = classObj.studentSortPreference!;
+            }
           }
           
           if (state.classes.isLoading && _isEditing && state.classes.currentClass == null) {
@@ -195,6 +200,40 @@ class _ClassFormScreenState extends State<ClassFormScreen> {
                           return 'Academic year is required';
                         }
                         return null;
+                      },
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Student Sort Preference
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: DropdownButtonFormField<String>(
+                      value: _studentSortPreference,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                        labelText: 'Student Sort Order',
+                      ),
+                      items: const [
+                        DropdownMenuItem(
+                          value: 'alphabetic',
+                          child: Text('Alphabetical (Girls first, then Boys)'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'roll_number',
+                          child: Text('Roll Number (Numeric)'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => _studentSortPreference = value);
+                        }
                       },
                     ),
                   ),

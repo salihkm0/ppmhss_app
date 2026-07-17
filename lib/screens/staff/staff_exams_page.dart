@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_redux/flutter_redux.dart';
 import 'package:intl/intl.dart';
 import 'package:school_management/actions/exam_actions.dart';
+import 'package:school_management/actions/class_actions.dart';
 import 'package:school_management/models/exam_model.dart';
 import 'package:school_management/store/app_state.dart';
 import 'package:school_management/utils/theme.dart';
@@ -34,6 +35,7 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
   Future<void> _loadData() async {
     final store = StoreProvider.of<AppState>(context, listen: false);
     await store.dispatch(fetchTeacherExamsThunk());
+    await store.dispatch(fetchTeacherClassesThunk());
   }
 
   @override
@@ -81,6 +83,7 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
             exams: filteredExams,
             isLoading: store.state.exams.isLoading,
             error: store.state.exams.error,
+            teacherClasses: store.state.classes.teacherClasses,
           );
         },
         builder: (context, vm) {
@@ -106,7 +109,7 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
               padding: const EdgeInsets.all(16),
               itemCount: vm.exams.length,
               itemBuilder: (context, index) =>
-                  _buildExamCard(vm.exams[index]),
+                  _buildExamCard(vm.exams[index], vm.teacherClasses),
             ),
           );
         },
@@ -114,7 +117,7 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
     );
   }
 
-  Widget _buildExamCard(ExamModel exam) {
+  Widget _buildExamCard(ExamModel exam, List<dynamic> teacherClasses) {
     final statusColor = _statusColor(exam.overallStatus);
     final dateRange =
         '${DateFormat('d MMM').format(exam.startDate)} – ${DateFormat('d MMM yyyy').format(exam.endDate)}';
@@ -204,7 +207,7 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
               children: [
                 Expanded(
                   child: ElevatedButton.icon(
-                    onPressed: () => _onEnterMarksTapped(context, exam),
+                    onPressed: () => _onEnterMarksTapped(context, exam, teacherClasses),
                     icon: const Icon(Icons.edit_note, size: 18),
                     label: const Text('Enter Marks'),
                     style: ElevatedButton.styleFrom(
@@ -300,18 +303,29 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
     return status[0].toUpperCase() + status.substring(1);
   }
 
-  void _onEnterMarksTapped(BuildContext context, ExamModel exam) {
+  void _onEnterMarksTapped(BuildContext context, ExamModel exam, List<dynamic> teacherClasses) {
     String targetClassId = widget.classId;
     String targetClassName = widget.className;
 
     if (targetClassId.isEmpty && exam.classIds != null && exam.classIds!.isNotEmpty) {
-      if (exam.classIds!.length == 1) {
-        final c = exam.classIds![0];
+      // Filter exam.classIds by teacherClasses
+      final assignedClassIds = exam.classIds!.where((c) {
+        final cId = (c is Map) ? (c['_id'] ?? c['id']) : c.toString();
+        return teacherClasses.any((tc) => tc.id == cId);
+      }).toList();
+
+      if (assignedClassIds.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not assigned to any class for this exam.')));
+        return;
+      }
+
+      if (assignedClassIds.length == 1) {
+        final c = assignedClassIds[0];
         targetClassId = (c is Map) ? (c['_id'] ?? c['id'] ?? '') : c.toString();
-        targetClassName = (c is Map) ? (c['name'] ?? 'Class') : 'Class';
+        targetClassName = (c is Map) ? (c['displayName'] ?? (c['section'] != null ? '${c['name']} - ${c['section']}' : c['name']) ?? 'Class') : 'Class';
         _navigateToMarksEntry(context, exam, targetClassId, targetClassName);
       } else {
-        _showClassSelectionSheet(context, exam);
+        _showClassSelectionSheet(context, exam, assignedClassIds);
       }
     } else {
       _navigateToMarksEntry(context, exam, targetClassId, targetClassName);
@@ -336,7 +350,7 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
     );
   }
 
-  void _showClassSelectionSheet(BuildContext context, ExamModel exam) {
+  void _showClassSelectionSheet(BuildContext context, ExamModel exam, List<dynamic> assignedClassIds) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -358,9 +372,9 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
                 Flexible(
                   child: ListView.builder(
                     shrinkWrap: true,
-                    itemCount: exam.classIds!.length,
+                    itemCount: assignedClassIds.length,
                     itemBuilder: (ctx, i) {
-                      final c = exam.classIds![i];
+                      final c = assignedClassIds[i];
                       final cId = (c is Map) ? (c['_id'] ?? c['id'] ?? '') : c.toString();
                       final cName = (c is Map) 
                           ? (c['displayName'] ?? (c['section'] != null ? '${c['name']} - ${c['section']}' : c['name']) ?? 'Class') 
@@ -389,10 +403,12 @@ class _ExamViewModel {
   final List<ExamModel> exams;
   final bool isLoading;
   final String? error;
+  final List<dynamic> teacherClasses;
 
   _ExamViewModel({
     required this.exams,
     required this.isLoading,
     this.error,
+    this.teacherClasses = const [],
   });
 }
