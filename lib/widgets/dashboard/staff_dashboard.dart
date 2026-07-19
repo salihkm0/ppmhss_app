@@ -160,7 +160,9 @@ class _StaffDashboardState extends State<StaffDashboard> {
                     const SizedBox(height: 10),
                     _StaffInfoCard(
                       info: d.staffInfo,
-                      subjectsTaught: d.quickStats['subjectsTaught'],
+                      subjectsTaught: d.subjectClasses != null 
+                          ? d.subjectClasses!.expand((c) => c.subjects).map((s) => s.toLowerCase()).toSet().length 
+                          : d.quickStats['subjectsTaught'],
                     ),
                     const SizedBox(height: 20),
 

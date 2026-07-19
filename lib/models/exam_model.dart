@@ -12,6 +12,7 @@ class ExamModel {
   final DateTime startDate;
   final DateTime endDate;
   final String overallStatus;
+  final String? createdBy;
 
   ExamModel({
     required this.id,
@@ -27,6 +28,7 @@ class ExamModel {
     required this.startDate,
     required this.endDate,
     this.overallStatus = 'draft',
+    this.createdBy,
   });
 
   factory ExamModel.fromJson(Map<String, dynamic> json) {
@@ -44,6 +46,7 @@ class ExamModel {
       startDate: json['startDate'] != null ? DateTime.parse(json['startDate']) : DateTime.now(),
       endDate: json['endDate'] != null ? DateTime.parse(json['endDate']) : DateTime.now(),
       overallStatus: json['overallStatus'] ?? 'draft',
+      createdBy: json['createdBy'] is Map ? json['createdBy']['_id'] : json['createdBy'],
     );
   }
   
@@ -61,6 +64,7 @@ class ExamModel {
     DateTime? startDate,
     DateTime? endDate,
     String? overallStatus,
+    String? createdBy,
   }) {
     return ExamModel(
       id: id ?? this.id,
@@ -76,6 +80,7 @@ class ExamModel {
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
       overallStatus: overallStatus ?? this.overallStatus,
+      createdBy: createdBy ?? this.createdBy,
     );
   }
 }

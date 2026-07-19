@@ -92,10 +92,22 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
   // Dirty tracking — only send changed students on save
   final Set<String> _dirtyStudents = {};
 
+  // ── Focus & Navigation ──
+  final Map<String, ExpansionTileController> _tileControllers = {};
+  final Map<String, FocusNode> _focusNodes = {};
+
   // ── UI ──
   bool _isLoading = false;
   bool _isSaving = false;
   String? _error;
+
+  @override
+  void dispose() {
+    for (final node in _focusNodes.values) {
+      node.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -276,6 +288,52 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
         'ceMarks':        nowAbsent ? 0 : curr['ceMarks'],
       };
     });
+  }
+
+  void _handleFieldSubmitted(String studentId, String examSubjectId, String fieldType) {
+    final students = _filteredStudents;
+    final sIdx = students.indexWhere((s) => s['studentId'].toString() == studentId);
+    if (sIdx == -1) return;
+
+    final subj = _examSubjects.firstWhere((s) => (s['examSubjectId']?.toString() ?? '') == examSubjectId, orElse: () => {});
+    final hasPrac = subj['hasPractical'] == true && (subj['practicalMaxMarks'] as num? ?? 0) > 0;
+    final hasCE = subj['ceEnabled'] == true && (subj['ceMaxMarks'] as num? ?? 0) > 0;
+
+    String nextField = '';
+    String nextStudentId = studentId;
+
+    if (fieldType == 'ceMarks') {
+      nextField = 'theoryScore';
+    } else if (fieldType == 'theoryScore') {
+      if (hasPrac) {
+        nextField = 'practicalScore';
+      } else {
+        if (sIdx + 1 < students.length) {
+          nextStudentId = students[sIdx + 1]['studentId'].toString();
+          nextField = hasCE ? 'ceMarks' : 'theoryScore';
+        }
+      }
+    } else if (fieldType == 'practicalScore') {
+      if (sIdx + 1 < students.length) {
+        nextStudentId = students[sIdx + 1]['studentId'].toString();
+        nextField = hasCE ? 'ceMarks' : 'theoryScore';
+      }
+    }
+
+    if (nextField.isNotEmpty) {
+      if (nextStudentId != studentId) {
+        _tileControllers[studentId]?.collapse();
+        _tileControllers[nextStudentId]?.expand();
+        // Wait for expansion animation to build fields
+        Future.delayed(const Duration(milliseconds: 300), () {
+          final nextKey = '${nextField}_${nextStudentId}_$examSubjectId';
+          _focusNodes[nextKey]?.requestFocus();
+        });
+      } else {
+        final nextKey = '${nextField}_${nextStudentId}_$examSubjectId';
+        _focusNodes[nextKey]?.requestFocus();
+      }
+    }
   }
 
   // ────────────────────────────────────────────────────────────────
@@ -673,6 +731,7 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
+          controller: _tileControllers.putIfAbsent(sid, () => ExpansionTileController()),
           tilePadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
           childrenPadding: EdgeInsets.zero,
           leading: CircleAvatar(
@@ -752,6 +811,10 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
     final total    = tInt + pInt + cInt;
     final maxTotal = maxTheory + maxPrac + maxCE;
 
+    final bool teError = tVal != null && tVal.toString().isNotEmpty && tInt > maxTheory;
+    final bool peError = pVal != null && pVal.toString().isNotEmpty && pInt > maxPrac;
+    final bool ceError = cVal != null && cVal.toString().isNotEmpty && cInt > maxCE;
+
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
       padding: const EdgeInsets.all(12),
@@ -793,31 +856,37 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
         const SizedBox(height: 10),
         // Score inputs
         Row(children: [
+          if (hasCE) ...[
+            _scoreField(
+              fieldKey: 'ceMarks_${studentId}_$key',
+              label: 'CE /$maxCE',
+              value: isAbsent ? '0' : (cVal?.toString() ?? ''),
+              enabled: canEdit && !isAbsent,
+              hasError: ceError,
+              onChanged: (v) => _handleMarkChange(studentId, key, 'ceMarks', v),
+              onSubmitted: (v) => _handleFieldSubmitted(studentId, key, 'ceMarks'),
+            ),
+            const SizedBox(width: 8),
+          ],
           _scoreField(
-            fieldKey: 'theory_${studentId}_${key}_$isAbsent',
-            label: 'Theory /$maxTheory',
+            fieldKey: 'theoryScore_${studentId}_$key',
+            label: 'TE /$maxTheory',
             value: isAbsent ? '0' : (tVal?.toString() ?? ''),
             enabled: canEdit && !isAbsent,
+            hasError: teError,
             onChanged: (v) => _handleMarkChange(studentId, key, 'theoryScore', v),
+            onSubmitted: (v) => _handleFieldSubmitted(studentId, key, 'theoryScore'),
           ),
           if (hasPrac) ...[
             const SizedBox(width: 8),
             _scoreField(
-              fieldKey: 'prac_${studentId}_${key}_$isAbsent',
-              label: 'Practical /$maxPrac',
+              fieldKey: 'practicalScore_${studentId}_$key',
+              label: 'PE /$maxPrac',
               value: isAbsent ? '0' : (pVal?.toString() ?? ''),
               enabled: canEdit && !isAbsent,
+              hasError: peError,
               onChanged: (v) => _handleMarkChange(studentId, key, 'practicalScore', v),
-            ),
-          ],
-          if (hasCE) ...[
-            const SizedBox(width: 8),
-            _scoreField(
-              fieldKey: 'ce_${studentId}_${key}_$isAbsent',
-              label: 'CE /$maxCE',
-              value: isAbsent ? '0' : (cVal?.toString() ?? ''),
-              enabled: canEdit && !isAbsent,
-              onChanged: (v) => _handleMarkChange(studentId, key, 'ceMarks', v),
+              onSubmitted: (v) => _handleFieldSubmitted(studentId, key, 'practicalScore'),
             ),
           ],
           const SizedBox(width: 8),
@@ -846,30 +915,37 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
     required String label,
     required String value,
     required bool enabled,
+    bool hasError = false,
     required ValueChanged<String> onChanged,
+    required ValueChanged<String> onSubmitted,
   }) {
+    _focusNodes.putIfAbsent(fieldKey, () => FocusNode());
     return Expanded(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF6B7280))),
         const SizedBox(height: 4),
         TextFormField(
           key: ValueKey(fieldKey),
+          focusNode: _focusNodes[fieldKey],
+          textInputAction: TextInputAction.next,
           initialValue: value,
           enabled: enabled,
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: hasError ? Colors.red : Colors.black),
           decoration: InputDecoration(
             isDense: true,
             contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFE5E7EB))),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: hasError ? Colors.red : const Color(0xFFE5E7EB))),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: hasError ? Colors.red : const Color(0xFFE5E7EB))),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: hasError ? Colors.red : AppTheme.primaryColor)),
             disabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: const BorderSide(color: Color(0xFFF3F4F6))),
             filled: true,
-            fillColor: enabled ? Colors.white : const Color(0xFFF9FAFB),
+            fillColor: enabled ? (hasError ? Colors.red[50] : Colors.white) : const Color(0xFFF9FAFB),
           ),
           onChanged: onChanged,
+          onFieldSubmitted: onSubmitted,
         ),
       ]),
     );

@@ -84,6 +84,7 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
             isLoading: store.state.exams.isLoading,
             error: store.state.exams.error,
             teacherClasses: store.state.classes.teacherClasses,
+            currentUserId: store.state.auth.user?.id ?? store.state.auth.user?.staffId,
           );
         },
         builder: (context, vm) {
@@ -109,7 +110,7 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
               padding: const EdgeInsets.all(16),
               itemCount: vm.exams.length,
               itemBuilder: (context, index) =>
-                  _buildExamCard(vm.exams[index], vm.teacherClasses),
+                  _buildExamCard(vm.exams[index], vm.teacherClasses, vm.currentUserId),
             ),
           );
         },
@@ -117,7 +118,7 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
     );
   }
 
-  Widget _buildExamCard(ExamModel exam, List<dynamic> teacherClasses) {
+  Widget _buildExamCard(ExamModel exam, List<dynamic> teacherClasses, String? currentUserId) {
     final statusColor = _statusColor(exam.overallStatus);
     final dateRange =
         '${DateFormat('d MMM').format(exam.startDate)} – ${DateFormat('d MMM yyyy').format(exam.endDate)}';
@@ -219,31 +220,33 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => StaffExamFormPage(
-                            classId: widget.classId,
-                            className: widget.className,
-                            existingExam: exam,
+                if (currentUserId != null && exam.createdBy == currentUserId) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => StaffExamFormPage(
+                              classId: widget.classId,
+                              className: widget.className,
+                              existingExam: exam,
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.edit, size: 18),
-                    label: const Text('Edit Exam'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.primaryColor,
-                      side: BorderSide(color: AppTheme.primaryColor),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+                        );
+                      },
+                      icon: const Icon(Icons.edit, size: 18),
+                      label: const Text('Edit Exam'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.primaryColor,
+                        side: BorderSide(color: AppTheme.primaryColor),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ],
@@ -404,11 +407,13 @@ class _ExamViewModel {
   final bool isLoading;
   final String? error;
   final List<dynamic> teacherClasses;
+  final String? currentUserId;
 
   _ExamViewModel({
     required this.exams,
     required this.isLoading,
     this.error,
     this.teacherClasses = const [],
+    this.currentUserId,
   });
 }
