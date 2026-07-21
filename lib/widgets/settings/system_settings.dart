@@ -19,8 +19,9 @@ class _SystemSettingsState extends State<SystemSettings> {
     {'grade': 'B', 'min': 60, 'max': 69, 'color': Colors.lightBlue},
     {'grade': 'C+', 'min': 50, 'max': 59, 'color': Colors.orange},
     {'grade': 'C', 'min': 40, 'max': 49, 'color': Colors.deepOrange},
-    {'grade': 'D', 'min': 33, 'max': 39, 'color': Colors.red},
-    {'grade': 'F', 'min': 0, 'max': 32, 'color': Colors.grey},
+    {'grade': 'D+', 'min': 30, 'max': 39, 'color': Colors.red},
+    {'grade': 'D', 'min': 20, 'max': 29, 'color': Colors.redAccent},
+    {'grade': 'E', 'min': 0, 'max': 19, 'color': Colors.grey},
   ];
 
   @override

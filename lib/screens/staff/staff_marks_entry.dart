@@ -22,8 +22,9 @@ Map<String, dynamic> _gradeInfo(int obtained, int max) {
   if (pct >= 60) return {'grade': 'B',  'color': const Color(0xFF0891B2)};
   if (pct >= 50) return {'grade': 'C+', 'color': const Color(0xFFCA8A04)};
   if (pct >= 40) return {'grade': 'C',  'color': const Color(0xFFEA580C)};
-  if (pct >= 33) return {'grade': 'D',  'color': const Color(0xFFEF4444)};
-  return {'grade': 'F', 'color': const Color(0xFF6B7280)};
+  if (pct >= 30) return {'grade': 'D+', 'color': const Color(0xFFEF4444)};
+  if (pct >= 20) return {'grade': 'D',  'color': const Color(0xFFDC2626)};
+  return {'grade': 'E', 'color': const Color(0xFF9CA3AF)};
 }
 
 Color _pctColor(double pct) {
@@ -351,6 +352,39 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
 
     if (targets.isEmpty) {
       _showSnack('No changes to save.');
+      return;
+    }
+
+    int errorCount = 0;
+    for (var student in targets) {
+      final sid = student['studentId']?.toString() ?? '';
+      final subjs = (student['subjects'] as List? ?? []).cast<Map<String, dynamic>>();
+      for (var subj in subjs) {
+        final key = subj['examSubjectId']?.toString() ?? subj['subjectId']?.toString() ?? '';
+        final tm = _tempMarks[sid]?[key] ?? {};
+        final isAbsent = tm['isAbsent'] ?? subj['isAbsent'] ?? false;
+        if (isAbsent) continue;
+
+        final maxTheory = ((subj['theoryMaxMarks'] ?? subj['termMaxMarks'] ?? 100) as num).toInt();
+        final maxPrac   = ((subj['practicalMaxMarks'] ?? 0) as num).toInt();
+        final maxCE     = ((subj['ceMaxMarks'] ?? 0) as num).toInt();
+
+        final tVal = tm['theoryScore'] ?? subj['theoryScore'] ?? '';
+        final pVal = tm['practicalScore'] ?? subj['practicalScore'] ?? '';
+        final cVal = tm['ceMarks'] ?? subj['ceMarks'] ?? subj['ceScore'] ?? '';
+
+        int tInt = tVal is int ? tVal : int.tryParse(tVal.toString()) ?? 0;
+        int pInt = pVal is int ? pVal : int.tryParse(pVal.toString()) ?? 0;
+        int cInt = cVal is int ? cVal : int.tryParse(cVal.toString()) ?? 0;
+
+        if (tVal.toString().isNotEmpty && tInt > maxTheory) errorCount++;
+        if (pVal.toString().isNotEmpty && pInt > maxPrac) errorCount++;
+        if (cVal.toString().isNotEmpty && cInt > maxCE) errorCount++;
+      }
+    }
+
+    if (errorCount > 0) {
+      _showSnack('Please fix $errorCount invalid mark entries before saving.', isError: true);
       return;
     }
 
