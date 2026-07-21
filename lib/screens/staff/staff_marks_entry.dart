@@ -233,6 +233,40 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
       _subjectProgress.isNotEmpty &&
       _subjectProgress.every((sp) => (sp['percentage'] as num? ?? 0) == 100);
 
+  bool get _hasValidationErrors {
+    final targets = _dirtyStudents.isNotEmpty
+        ? _filteredStudents.where((s) => _dirtyStudents.contains(s['studentId']?.toString())).toList()
+        : _filteredStudents;
+    
+    for (var student in targets) {
+      final sid = student['studentId']?.toString() ?? '';
+      final subjs = (student['subjects'] as List? ?? []).cast<Map<String, dynamic>>();
+      for (var subj in subjs) {
+        final key = subj['examSubjectId']?.toString() ?? subj['subjectId']?.toString() ?? '';
+        final tm = _tempMarks[sid]?[key] ?? {};
+        final isAbsent = tm['isAbsent'] ?? subj['isAbsent'] ?? false;
+        if (isAbsent) continue;
+
+        final maxTheory = ((subj['theoryMaxMarks'] ?? subj['termMaxMarks'] ?? 100) as num).toInt();
+        final maxPrac   = ((subj['practicalMaxMarks'] ?? 0) as num).toInt();
+        final maxCE     = ((subj['ceMaxMarks'] ?? 0) as num).toInt();
+
+        final tVal = tm['theoryScore'] ?? subj['theoryScore'] ?? '';
+        final pVal = tm['practicalScore'] ?? subj['practicalScore'] ?? '';
+        final cVal = tm['ceMarks'] ?? subj['ceMarks'] ?? subj['ceScore'] ?? '';
+
+        int tInt = tVal is int ? tVal : int.tryParse(tVal.toString()) ?? 0;
+        int pInt = pVal is int ? pVal : int.tryParse(pVal.toString()) ?? 0;
+        int cInt = cVal is int ? cVal : int.tryParse(cVal.toString()) ?? 0;
+
+        if (tVal.toString().isNotEmpty && tInt > maxTheory) return true;
+        if (pVal.toString().isNotEmpty && pInt > maxPrac) return true;
+        if (cVal.toString().isNotEmpty && cInt > maxCE) return true;
+      }
+    }
+    return false;
+  }
+
   // ────────────────────────────────────────────────────────────────
   // Mark Change Handlers
   // ────────────────────────────────────────────────────────────────
@@ -250,11 +284,6 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
     int? parsed;
     if (value != '' && value != null) {
       parsed = int.tryParse(value.toString()) ?? 0;
-      int max = 0;
-      if (field == 'theoryScore')    max = (subj['theoryMaxMarks'] ?? subj['termMaxMarks'] ?? subj['maxMarks'] ?? 100) as int;
-      if (field == 'practicalScore') max = (subj['practicalMaxMarks'] ?? 0) as int;
-      if (field == 'ceMarks')        max = (subj['ceMaxMarks'] ?? 0) as int;
-      parsed = parsed.clamp(0, max > 0 ? max : 9999);
     }
 
     _dirtyStudents.add(studentId);
@@ -526,12 +555,12 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: TextButton.icon(
-              onPressed: _isSaving ? null : _handleSave,
-              icon: const Icon(Icons.check_rounded, color: Colors.white, size: 18),
+              onPressed: _isSaving || _hasValidationErrors ? null : _handleSave,
+              icon: Icon(Icons.check_rounded, color: _isSaving || _hasValidationErrors ? Colors.white54 : Colors.white, size: 18),
               label: Text(_dirtyStudents.isNotEmpty
                   ? 'Save (${_dirtyStudents.length})'
                   : 'Save All',
-                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                  style: TextStyle(color: _isSaving || _hasValidationErrors ? Colors.white54 : Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
             ),
           ),
       ],
