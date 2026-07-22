@@ -81,7 +81,7 @@ class AuthService {
     required String newPassword,
   }) async {
     try {
-      final response = await _api.post(ApiConfig.changePassword, data: {
+      final response = await _api.put(ApiConfig.changePassword, data: {
         'currentPassword': currentPassword,
         'newPassword': newPassword,
       });
