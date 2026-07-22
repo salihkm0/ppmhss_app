@@ -66,6 +66,9 @@ class AuthService {
     try {
       final response = await _api.get(ApiConfig.me);
       final userData = response.data['user'] ?? response.data;
+      if (response.data['staff'] != null && response.data['staff']['_id'] != null) {
+        userData['staffId'] = response.data['staff']['_id'];
+      }
       return UserModel.fromJson(userData);
     } on DioException catch (e) {
       print('GetMe error: ${e.message}');
@@ -85,6 +88,43 @@ class AuthService {
       return response.data;
     } on DioException catch (e) {
       print('Change password error: ${e.message}');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
+    try {
+      final response = await _api.put(ApiConfig.updateProfile, data: data);
+      return response.data;
+    } on DioException catch (e) {
+      print('Update profile error: ${e.message}');
+      if (e.response?.data != null) {
+        throw Exception(e.response?.data['message'] ?? 'Profile update failed');
+      }
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> checkAppVersion({required String platform, required String version}) async {
+    try {
+      final response = await _api.get('${ApiConfig.appVersion}?platform=$platform&version=$version');
+      print('Check app version response: ${response.data}');
+      return response.data['data'] ?? response.data;
+    } on DioException catch (e) {
+      print('Check app version error: ${e.response?.data ?? e.message}');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> updateAppVersionConfig(Map<String, dynamic> data) async {
+    try {
+      final response = await _api.put(ApiConfig.appVersion, data: data);
+      return response.data;
+    } on DioException catch (e) {
+      print('Update app version error: ${e.message}');
+      if (e.response?.data != null) {
+        throw Exception(e.response?.data['message'] ?? 'Failed to update app version config');
+      }
       rethrow;
     }
   }

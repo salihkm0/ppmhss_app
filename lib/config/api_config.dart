@@ -3,7 +3,9 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ApiConfig {
   static String get baseUrl {
-    return 'https://manage.ppmhsskottukkara.com/api';
+    if (kIsWeb) return 'http://localhost:5055/api';
+    if (Platform.isAndroid) return 'http://10.0.2.2:5055/api';
+    return 'http://localhost:5055/api';
   }
   static const int connectTimeout = 30000;
   static const int receiveTimeout = 30000;
@@ -18,6 +20,7 @@ class ApiConfig {
   static const String logout = '/auth/logout';
   static const String me = '/auth/me';
   static const String changePassword = '/auth/change-password';
+  static const String updateProfile = '/auth/profile';
   static const String registerParent = '/parents/register';
   
   // Student endpoints
@@ -59,6 +62,7 @@ class ApiConfig {
   static const String marksBulk = '/marks/bulk';
   static const String marksSubmit = '/marks/submit';
   static const String marksReview = '/marks/review';
+  static const String marksPermissions = '/marks/permissions';
   
   // Academic Years endpoints
   static const String academicYears = '/academic-years';

@@ -10,6 +10,7 @@ import 'package:school_management/widgets/common/loading_widget.dart';
 import 'package:school_management/widgets/common/error_widget.dart';
 import 'package:school_management/screens/staff/staff_marks_entry.dart';
 import 'package:school_management/screens/staff/staff_exam_form.dart';
+import 'package:school_management/screens/staff/class_marks_overview.dart';
 
 class StaffExamsPage extends StatefulWidget {
   final String classId;
@@ -70,14 +71,68 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
       body: StoreConnector<AppState, _ExamViewModel>(
         converter: (store) {
           final allExams = store.state.exams.exams;
-          final filteredExams = widget.classId.isNotEmpty 
-              ? allExams.where((exam) {
-                  return exam.classIds?.any((c) {
-                    final cId = (c is Map) ? (c['_id'] ?? c['id']) : c.toString();
-                    return cId == widget.classId;
-                  }) ?? false;
-                }).toList()
-              : allExams;
+          final filteredExams = allExams.where((exam) {
+            final currentUserId = store.state.auth.user?.id;
+            final currentStaffId = store.state.auth.user?.staffId;
+            
+            // If they created the exam, allow
+            if (currentUserId != null && exam.createdBy == currentUserId) return true;
+            
+            // Check if they have a role in any of the exam's classes
+            if (exam.classIds == null || exam.classIds!.isEmpty) return false;
+            
+            final teacherClasses = store.state.classes.teacherClasses;
+            bool hasRoleInExam = false;
+            
+            for (var c in exam.classIds!) {
+              final cId = (c is Map) ? (c['_id'] ?? c['id']) : c.toString();
+              
+              // If we are filtering by a specific class, skip others
+              if (widget.classId.isNotEmpty && cId != widget.classId) continue;
+              
+              final tcList = teacherClasses.where((t) => t.id == cId).toList();
+              if (tcList.isEmpty) continue;
+              
+              final tc = tcList.first;
+              
+              if (currentStaffId != null) {
+                final String currentStaffIdStr = currentStaffId.toString();
+                
+                // Allow if they are the class teacher
+                if (tc.classTeacherId == currentStaffIdStr) {
+                  hasRoleInExam = true;
+                  break;
+                }
+                
+                // If they are a subject teacher, check if their subject is in the exam
+                if (tc.subjectTeachers != null && tc.subjectTeachers!.isNotEmpty) {
+                  final theirSubjects = tc.subjectTeachers!.where((st) {
+                    if (st == null) return false;
+                    final tId = (st['teacherId'] is Map) ? st['teacherId']['_id'] : st['teacherId'];
+                    return tId?.toString() == currentStaffIdStr;
+                  }).map((e) {
+                    final s = (e['subjectId'] is Map) ? e['subjectId']['_id'] : e['subjectId'];
+                    return s?.toString();
+                  }).where((id) => id != null).toList();
+                  
+                  final examSubjectIds = exam.subjects?.map((s) {
+                    if (s == null) return null;
+                    final sId = (s is Map) ? s['subjectId'] : s;
+                    final id = (sId is Map) ? sId['_id'] : sId;
+                    return id?.toString();
+                  }).where((id) => id != null).toList() ?? [];
+                  
+                  final hasMatchingSubject = theirSubjects.any((tsId) => examSubjectIds.contains(tsId));
+                  if (hasMatchingSubject) {
+                    hasRoleInExam = true;
+                    break;
+                  }
+                }
+              }
+            }
+            
+            return hasRoleInExam;
+          }).toList();
               
           return _ExamViewModel(
             exams: filteredExams,
@@ -203,50 +258,80 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
               ],
             ),
             const SizedBox(height: 12),
-            // Action button
-            Row(
+            // Action buttons
+            Column(
               children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _onEnterMarksTapped(context, exam, teacherClasses),
-                    icon: const Icon(Icons.edit_note, size: 18),
-                    label: const Text('Enter Marks'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryColor,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _onEnterMarksTapped(context, exam, teacherClasses, currentUserId),
+                        icon: const Icon(Icons.edit_note, size: 18),
+                        label: const Text('Enter Marks'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryColor,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
+                      ),
+                    ),
+                    if (currentUserId != null && exam.createdBy == currentUserId) ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => StaffExamFormPage(
+                                  classId: widget.classId,
+                                  className: widget.className,
+                                  existingExam: exam,
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.edit, size: 18),
+                          label: const Text('Edit Exam'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppTheme.primaryColor,
+                            side: const BorderSide(color: AppTheme.primaryColor),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ClassMarksOverviewPage(
+                            classId: widget.classId,
+                            className: widget.className,
+                            examId: exam.id,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.table_chart_outlined, size: 18),
+                    label: const Text('View Class Marks'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF7C3AED),
+                      side: const BorderSide(color: Color(0xFF7C3AED)),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10)),
                     ),
                   ),
                 ),
-                if (currentUserId != null && exam.createdBy == currentUserId) ...[
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => StaffExamFormPage(
-                              classId: widget.classId,
-                              className: widget.className,
-                              existingExam: exam,
-                            ),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.edit, size: 18),
-                      label: const Text('Edit Exam'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.primaryColor,
-                        side: BorderSide(color: AppTheme.primaryColor),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
-                  ),
-                ],
               ],
             ),
           ],
@@ -306,19 +391,56 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
     return status[0].toUpperCase() + status.substring(1);
   }
 
-  void _onEnterMarksTapped(BuildContext context, ExamModel exam, List<dynamic> teacherClasses) {
+  void _onEnterMarksTapped(BuildContext context, ExamModel exam, List<dynamic> teacherClasses, String? currentUserId) {
     String targetClassId = widget.classId;
     String targetClassName = widget.className;
+    
+    // We need the staff ID for class and subject matching
+    final store = StoreProvider.of<AppState>(context, listen: false);
+    final currentStaffId = store.state.auth.user?.staffId;
 
     if (targetClassId.isEmpty && exam.classIds != null && exam.classIds!.isNotEmpty) {
-      // Filter exam.classIds by teacherClasses
+      // Filter exam.classIds by teacherClasses AND ensure they have a valid role in the exam for that class
       final assignedClassIds = exam.classIds!.where((c) {
         final cId = (c is Map) ? (c['_id'] ?? c['id']) : c.toString();
-        return teacherClasses.any((tc) => tc.id == cId);
+        
+        final tcList = teacherClasses.where((t) => t.id == cId).toList();
+        if (tcList.isEmpty) return false;
+        final tc = tcList.first;
+        
+        if (currentStaffId != null) {
+          final String currentStaffIdStr = currentStaffId.toString();
+          
+          if (tc.classTeacherId == currentStaffIdStr) return true;
+          
+          // Allow if they are a subject teacher for a subject that is in this exam
+          if (tc.subjectTeachers != null && tc.subjectTeachers!.isNotEmpty) {
+            final theirSubjects = tc.subjectTeachers!.where((st) {
+              if (st == null) return false;
+              final tId = (st['teacherId'] is Map) ? st['teacherId']['_id'] : st['teacherId'];
+              return tId?.toString() == currentStaffIdStr;
+            }).map((e) {
+              final s = (e['subjectId'] is Map) ? e['subjectId']['_id'] : e['subjectId'];
+              return s?.toString();
+            }).where((id) => id != null).toList();
+            
+            final examSubjectIds = exam.subjects?.map((s) {
+              if (s == null) return null;
+              final sId = (s is Map) ? s['subjectId'] : s;
+              final id = (sId is Map) ? sId['_id'] : sId;
+              return id?.toString();
+            }).where((id) => id != null).toList() ?? [];
+            
+            final hasMatchingSubject = theirSubjects.any((tsId) => examSubjectIds.contains(tsId));
+            if (hasMatchingSubject) return true;
+          }
+        }
+        
+        return false;
       }).toList();
 
       if (assignedClassIds.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not assigned to any class for this exam.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You are not assigned to any subjects for this exam.')));
         return;
       }
 

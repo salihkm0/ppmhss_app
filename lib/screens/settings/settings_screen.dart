@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_redux/flutter_redux.dart';
-import 'package:school_management/screens/profile/profile_screen.dart';
 import 'package:school_management/widgets/settings/academic_year_settings.dart';
 import 'package:school_management/widgets/settings/system_settings.dart';
 import 'package:school_management/store/app_state.dart';
 import 'package:school_management/widgets/common/custom_appbar.dart';
 import 'package:school_management/utils/theme.dart';
+import 'package:school_management/services/auth_service.dart';
+import 'package:school_management/actions/auth_actions.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:school_management/screens/settings/privacy_policy_screen.dart';
+import 'package:school_management/screens/settings/terms_and_conditions_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -15,7 +20,21 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  String _selectedTab = 'profile';
+  String _selectedTab = 'preferences';
+  PackageInfo? _packageInfo;
+
+  @override
+  void initState() {
+    super.initState();
+    _initPackageInfo();
+  }
+
+  Future<void> _initPackageInfo() async {
+    final info = await PackageInfo.fromPlatform();
+    setState(() {
+      _packageInfo = info;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,12 +67,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 24),
                 
                 // Tabs
-                if (isAdmin)
-                  _buildAdminTabs()
-                else
-                  _buildUserTab(),
-                
-                const SizedBox(height: 24),
+                if (isAdmin) ...[
+                  _buildAdminTabs(),
+                  const SizedBox(height: 24),
+                ],
                 
                 // Content based on selected tab
                 _buildContent(isAdmin),
@@ -67,7 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildAdminTabs() {
     final tabs = [
-      {'id': 'profile', 'name': 'Profile', 'icon': Icons.person_outline, 'color': Colors.blue},
+      {'id': 'preferences', 'name': 'Preferences', 'icon': Icons.tune, 'color': Colors.blue},
       {'id': 'academic-years', 'name': 'Academic Years', 'icon': Icons.calendar_today, 'color': Colors.green},
       {'id': 'system', 'name': 'System', 'icon': Icons.settings, 'color': Colors.purple},
     ];
@@ -118,51 +135,204 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildUserTab() {
-    return GestureDetector(
-      onTap: () => setState(() => _selectedTab = 'profile'),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppTheme.primaryColor, AppTheme.primaryColor.withOpacity(0.8)],
-          ),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
+  Widget _buildAppPreferences() {
+    return StoreConnector<AppState, AppState>(
+      converter: (store) => store.state,
+      builder: (context, state) {
+        final user = state.auth.user;
+        final preferences = user?.preferences ?? {};
+        final bool notificationsEnabled = preferences['notificationsEnabled'] ?? true;
+        final bool biometricEnabled = preferences['biometricEnabled'] ?? false;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.person_outline,
-                size: 24,
-                color: AppTheme.primaryColor,
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              child: Text(
+                'App Preferences',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Profile Settings',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
+                  _buildSwitchTile(
+                    icon: Icons.notifications_active_outlined,
+                    title: 'Enable Notifications',
+                    value: notificationsEnabled,
+                    onChanged: (val) async {
+                      try {
+                        await AuthService().updateProfile({
+                          'preferences': {'notificationsEnabled': val},
+                        });
+                        if (context.mounted) {
+                          StoreProvider.of<AppState>(context).dispatch(getMeThunk(GetMeAction()));
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update: $e')));
+                        }
+                      }
+                    },
                   ),
-                  Text(
-                    'Manage your personal information',
-                    style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 12),
+                  const Divider(height: 1),
+                  _buildSwitchTile(
+                    icon: Icons.fingerprint,
+                    title: 'Enable Biometric Login',
+                    value: biometricEnabled,
+                    onChanged: (val) async {
+                      try {
+                        await AuthService().updateProfile({
+                          'preferences': {'biometricEnabled': val},
+                        });
+                        if (context.mounted) {
+                          StoreProvider.of<AppState>(context).dispatch(getMeThunk(GetMeAction()));
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update: $e')));
+                        }
+                      }
+                    },
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, color: Colors.white),
+            const SizedBox(height: 24),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+              child: Text(
+                'Support & About',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: Column(
+                children: [
+                  _buildActionTile(
+                    icon: Icons.chat_bubble_outline,
+                    title: 'Connect to Developer',
+                    subtitle: 'WhatsApp support',
+                    onTap: () async {
+                      final uri = Uri.parse("https://wa.me/918157024638");
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      } else {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open WhatsApp')));
+                        }
+                      }
+                    },
+                  ),
+                  const Divider(height: 1),
+                  _buildActionTile(
+                    icon: Icons.privacy_tip_outlined,
+                    title: 'Privacy Policy',
+                    onTap: () {
+                      if (context.mounted) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const PrivacyPolicyScreen()),
+                        );
+                      }
+                    },
+                  ),
+                  const Divider(height: 1),
+                  _buildActionTile(
+                    icon: Icons.description_outlined,
+                    title: 'Terms & Conditions',
+                    onTap: () {
+                      if (context.mounted) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const TermsAndConditionsScreen()),
+                        );
+                      }
+                    },
+                  ),
+                  const Divider(height: 1),
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.info_outline, color: Colors.grey[700], size: 20),
+                    ),
+                    title: const Text('App Details', style: TextStyle(fontWeight: FontWeight.w500)),
+                    subtitle: Text(
+                      _packageInfo != null
+                          ? 'Version ${_packageInfo!.version} (${_packageInfo!.buildNumber})'
+                          : 'Loading version...',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
+        );
+      }
+    );
+  }
+
+  Widget _buildSwitchTile({
+    required IconData icon,
+    required String title,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: AppTheme.primaryColor.withOpacity(0.1),
+          shape: BoxShape.circle,
         ),
+        child: Icon(icon, color: AppTheme.primaryColor, size: 20),
       ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+      trailing: Switch(
+        value: value,
+        onChanged: onChanged,
+        activeColor: AppTheme.primaryColor,
+      ),
+    );
+  }
+
+  Widget _buildActionTile({
+    required IconData icon,
+    required String title,
+    String? subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      onTap: onTap,
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: Colors.grey[700], size: 20),
+      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+      subtitle: subtitle != null
+          ? Text(subtitle, style: TextStyle(color: Colors.grey[600], fontSize: 13))
+          : null,
+      trailing: const Icon(Icons.chevron_right, color: Colors.grey),
     );
   }
 
@@ -173,11 +343,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           return const AcademicYearSettings();
         case 'system':
           return const SystemSettings();
+        case 'preferences':
         default:
-          return const ProfileScreen();
+          return _buildAppPreferences();
       }
     } else {
-      return const ProfileScreen();
+      return _buildAppPreferences();
     }
   }
 }

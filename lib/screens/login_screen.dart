@@ -7,6 +7,9 @@ import 'package:school_management/widgets/common/custom_button.dart';
 import 'package:school_management/widgets/common/custom_text_field.dart';
 import 'package:school_management/widgets/common/popup_notification.dart';
 import 'package:school_management/utils/theme.dart';
+import 'package:school_management/services/biometric_service.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -25,6 +28,70 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _rememberMe = false;
   bool _isEmailLogin = true;
   String? _lastShownError;
+  String _appVersion = '';
+
+  bool _biometricEnabled = false;
+  bool _isCheckingBiometrics = true;
+  IconData _biometricIcon = Icons.fingerprint;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometrics();
+    _fetchAppVersion();
+  }
+
+  Future<void> _fetchAppVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() {
+          _appVersion = packageInfo.version;
+        });
+      }
+    } catch (e) {
+      print('Failed to get app version: $e');
+    }
+  }
+
+  Future<void> _checkBiometrics() async {
+    final isEnabled = await BiometricService.isBiometricEnabled();
+    if (isEnabled) {
+      final available = await BiometricService.getAvailableBiometrics();
+      if (mounted) {
+        setState(() {
+          _biometricEnabled = true;
+          _biometricIcon = available.contains(BiometricType.face)
+              ? Icons.face
+              : Icons.fingerprint;
+        });
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _isCheckingBiometrics = false;
+      });
+    }
+  }
+
+  Future<void> _triggerBiometricLogin(Store<AppState> store) async {
+    final authenticated = await BiometricService.authenticate();
+    if (authenticated) {
+      final credentials = await BiometricService.getCredentials();
+      if (credentials != null) {
+        if (!mounted) return;
+        setState(() => _isLoading = true);
+        final action = LoginAction(
+          email: credentials['email'],
+          password: credentials['password']!,
+          rememberMe: true,
+          isBiometric: true,
+        );
+        await store.dispatch(loginThunk(action));
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -43,9 +110,9 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     final action = LoginAction(
-      email: _isEmailLogin ? _emailController.text : null,
-      phone: !_isEmailLogin ? _phoneController.text : null,
-      password: _passwordController.text,
+      email: _isEmailLogin ? _emailController.text.trim() : null,
+      phone: !_isEmailLogin ? _phoneController.text.trim() : null,
+      password: _passwordController.text.trim(),
       rememberMe: _rememberMe,
     );
 
@@ -437,6 +504,32 @@ class _LoginScreenState extends State<LoginScreen> {
                                   onPressed: () => _handleLogin(store),
                                   isLoading: _isLoading,
                                 ),
+                                if (_biometricEnabled && !_isCheckingBiometrics) ...[
+                                  const SizedBox(height: 16),
+                                  Row(
+                                    children: [
+                                      Expanded(child: Divider(color: Colors.grey.shade300)),
+                                      const Padding(
+                                        padding: EdgeInsets.symmetric(horizontal: 16),
+                                        child: Text('OR', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
+                                      ),
+                                      Expanded(child: Divider(color: Colors.grey.shade300)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 16),
+                                  ElevatedButton.icon(
+                                    onPressed: () => _triggerBiometricLogin(store),
+                                    icon: Icon(_biometricIcon, color: AppTheme.primaryColor),
+                                    label: Text('Login with Biometrics', style: TextStyle(color: AppTheme.primaryColor)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+                                      elevation: 0,
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      minimumSize: const Size(double.infinity, 50),
+                                    ),
+                                  ),
+                                ],
                                 const SizedBox(height: 16),
                                 // Parent Registration Link
                                 TextButton(
@@ -459,6 +552,17 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ],
                                   ),
                                 ),
+                                if (_appVersion.isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'v$_appVersion',
+                                    style: TextStyle(
+                                      color: Colors.grey[400],
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),

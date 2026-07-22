@@ -86,4 +86,17 @@ class ExamService {
         ? response.data as Map<String, dynamic>
         : {'data': response.data};
   }
+
+  /// Get teacher permissions for entering marks
+  Future<Map<String, dynamic>> getTeacherPermissions({
+    required String examId,
+    required String classId,
+  }) async {
+    final response = await _api.get(
+      '${ApiConfig.marksPermissions}?examId=$examId&classId=$classId',
+    );
+    return response.data is Map<String, dynamic>
+        ? response.data as Map<String, dynamic>
+        : {'data': response.data};
+  }
 }

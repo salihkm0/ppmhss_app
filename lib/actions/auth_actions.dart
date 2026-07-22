@@ -6,6 +6,9 @@ import 'package:school_management/services/push_notification_service.dart';
 import 'package:school_management/store/app_state.dart';
 import 'package:school_management/models/user_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:school_management/main.dart';
+import 'package:flutter/material.dart';
+import 'package:school_management/services/biometric_service.dart';
 import 'package:school_management/actions/academic_year_actions.dart';
 
 // Simple Actions
@@ -14,12 +17,14 @@ class LoginAction {
   final String? phone;
   final String password;
   final bool rememberMe;
+  final bool isBiometric;
   
   LoginAction({
     this.email,
     this.phone,
     required this.password,
     this.rememberMe = false,
+    this.isBiometric = false,
   });
 }
 
@@ -95,6 +100,9 @@ ThunkAction<AppState> loginThunk(LoginAction action) {
       if (response['success'] == true || response['token'] != null) {
         final token = response['token'];
         final userData = response['user'];
+        if (response['staff'] != null && response['staff']['_id'] != null) {
+          userData['staffId'] = response['staff']['_id'];
+        }
         final user = UserModel.fromJson(userData);
         
         final prefs = await SharedPreferences.getInstance();
@@ -118,6 +126,45 @@ ThunkAction<AppState> loginThunk(LoginAction action) {
         
         // Fetch global academic years
         store.dispatch(fetchAcademicYearsThunk(FetchAcademicYearsAction(limit: 100)));
+        
+        // Biometric logic - MUST run before LoginSuccessAction to use the LoginScreen's context
+        if (!action.isBiometric && (action.email != null || action.phone != null)) {
+          final isBioAvailable = await BiometricService.isBiometricAvailable();
+          final isBioEnabled = await BiometricService.isBiometricEnabled();
+          
+          if (isBioAvailable && !isBioEnabled) {
+            final ctx = navigatorKey.currentContext;
+            if (ctx != null) {
+              final String username = action.email ?? action.phone ?? '';
+              final String password = action.password;
+              
+              await showDialog(
+                context: ctx,
+                builder: (context) => AlertDialog(
+                  title: const Text('Enable Biometric Login?'),
+                  content: const Text('Would you like to use Face ID or Fingerprint to log in faster next time?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('No Thanks'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () async {
+                        await BiometricService.enableBiometrics();
+                        await BiometricService.saveCredentials(username, password);
+                        if (context.mounted) Navigator.pop(context);
+                      },
+                      child: const Text('Enable'),
+                    ),
+                  ],
+                ),
+              );
+            }
+          } else if (isBioEnabled) {
+            final String username = action.email ?? action.phone ?? '';
+            await BiometricService.saveCredentials(username, action.password);
+          }
+        }
         
         store.dispatch(LoginSuccessAction(user: user, token: token));
         store.dispatch(ClearAuthErrorAction());

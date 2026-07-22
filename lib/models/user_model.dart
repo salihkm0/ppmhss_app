@@ -6,6 +6,7 @@ class UserModel {
   final String role;
   final String? staffId;   // Staff document _id (present when role is teacher/staff)
   final DateTime? createdAt;
+  final Map<String, dynamic>? preferences;
 
   UserModel({
     required this.id,
@@ -15,6 +16,7 @@ class UserModel {
     required this.role,
     this.staffId,
     this.createdAt,
+    this.preferences,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -26,6 +28,7 @@ class UserModel {
       role: json['role'] ?? 'parent',
       staffId: json['staffId']?.toString(),
       createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt']) : null,
+      preferences: json['preferences'] != null ? Map<String, dynamic>.from(json['preferences']) : null,
     );
   }
 
@@ -38,6 +41,7 @@ class UserModel {
       'role': role,
       'staffId': staffId,
       'createdAt': createdAt?.toIso8601String(),
+      'preferences': preferences,
     };
   }
 }

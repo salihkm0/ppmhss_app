@@ -13,36 +13,40 @@ import 'package:school_management/widgets/common/error_widget.dart';
 import 'package:school_management/screens/staff/staff_attendance_page.dart';
 import 'package:school_management/screens/staff/staff_marks_entry.dart';
 import 'package:school_management/screens/staff/staff_exams_page.dart';
+import 'package:school_management/screens/staff/class_marks_overview.dart';
 import 'package:school_management/screens/classes/bulk_roll_number_dialog.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Design Tokens
 // ─────────────────────────────────────────────────────────────────────────────
 class _C {
-  static const primary    = Color(0xFF059669);
-  static const secondary  = Color(0xFF34D399);
-  static const success    = Color(0xFF22C55E);
+  static const primary = Color(0xFF059669);
+  static const secondary = Color(0xFF34D399);
+  static const success = Color(0xFF22C55E);
   // ignore: unused_field
-  static const warning    = Color(0xFFF59E0B);
+  static const warning = Color(0xFFF59E0B);
   // ignore: unused_field
-  static const error      = Color(0xFFEF4444);
-  static const sky        = Color(0xFF0EA5E9);
-  static const teal       = Color(0xFF14B8A6);
-  static const bg         = Color(0xFFF8FAFC);
-  static const surface    = Colors.white;
-  static const text1      = Color(0xFF0F172A);
-  static const text2      = Color(0xFF64748B);
-  static const text3      = Color(0xFF94A3B8);
-  static const divider    = Color(0xFFF1F5F9);
-  static const indigo10   = Color(0xFFF0FDF4);
-  static const purple10   = Color(0xFFF0FDFA);
-  static const green10    = Color(0xFFF0FDF4);
-  static const sky10      = Color(0xFFF0F9FF);
-  static const teal10     = Color(0xFFF0FDFA);
+  static const error = Color(0xFFEF4444);
+  static const sky = Color(0xFF0EA5E9);
+  static const teal = Color(0xFF14B8A6);
+  static const bg = Color(0xFFF8FAFC);
+  static const surface = Colors.white;
+  static const text1 = Color(0xFF0F172A);
+  static const text2 = Color(0xFF64748B);
+  static const text3 = Color(0xFF94A3B8);
+  static const divider = Color(0xFFF1F5F9);
+  static const indigo10 = Color(0xFFF0FDF4);
+  static const purple10 = Color(0xFFF0FDFA);
+  static const green10 = Color(0xFFF0FDF4);
+  static const sky10 = Color(0xFFF0F9FF);
+  static const teal10 = Color(0xFFF0FDFA);
 
   static List<BoxShadow> shadow([double b = 12, double o = 0.06]) => [
-    BoxShadow(color: Colors.black.withOpacity(o), blurRadius: b, offset: const Offset(0, 4)),
-  ];
+        BoxShadow(
+            color: Colors.black.withOpacity(o),
+            blurRadius: b,
+            offset: const Offset(0, 4)),
+      ];
   static List<BoxShadow> shadowSm() => shadow(8, 0.04);
 
   static const r12 = BorderRadius.all(Radius.circular(12));
@@ -119,44 +123,63 @@ class _MyClassesPageState extends State<MyClassesPage>
   List<StudentModel> get _filtered {
     if (_searchTerm.isEmpty) return _students;
     final q = _searchTerm.toLowerCase();
-    return _students.where((s) =>
-      s.fullName.toLowerCase().contains(q) ||
-      (s.rollNumber?.toLowerCase().contains(q) ?? false) ||
-      (s.admissionNo?.toLowerCase().contains(q) ?? false) ||
-      (s.studentCode.toLowerCase().contains(q))
-    ).toList();
+    return _students
+        .where((s) =>
+            s.fullName.toLowerCase().contains(q) ||
+            (s.rollNumber?.toLowerCase().contains(q) ?? false) ||
+            (s.admissionNo?.toLowerCase().contains(q) ?? false) ||
+            (s.studentCode.toLowerCase().contains(q)))
+        .toList();
   }
 
-  int get _boysCount   => _students.where((s) => s.gender?.toLowerCase() == 'male').length;
-  int get _girlsCount  => _students.where((s) => s.gender?.toLowerCase() == 'female').length;
+  int get _boysCount => _students.where((s) {
+        final g = s.gender?.toLowerCase();
+        return g == 'male' || g == 'm';
+      }).length;
+  int get _girlsCount => _students.where((s) {
+        final g = s.gender?.toLowerCase();
+        return g == 'female' || g == 'f';
+      }).length;
 
   // ── Navigation ────────────────────────────────────────────────────────────
   void _goAttendance() {
     if (_activeClass == null) return;
-    Navigator.push(context, _slide(StaffAttendancePage(
-      classId: _activeClass!.id,
-      className: _activeClass!.displayName ?? _activeClass!.name,
-    )));
+    Navigator.push(
+        context,
+        _slide(StaffAttendancePage(
+          classId: _activeClass!.id,
+          className: _activeClass!.displayName ?? _activeClass!.name,
+        )));
   }
 
   void _goExams() {
     if (_activeClass == null) return;
-    Navigator.push(context, _slide(StaffExamsPage(
-      classId: _activeClass!.id,
-      className: _activeClass!.displayName ?? _activeClass!.name,
-    )));
+    Navigator.push(
+        context,
+        _slide(StaffExamsPage(
+          classId: _activeClass!.id,
+          className: _activeClass!.displayName ?? _activeClass!.name,
+        )));
   }
 
   void _goMarks() {
     if (_activeClass == null) return;
-    Navigator.push(context, _slide(StaffMarksEntryPage(
-      classId: _activeClass!.id,
-      className: _activeClass!.displayName ?? _activeClass!.name,
-    )));
+    Navigator.push(
+        context,
+        _slide(StaffMarksEntryPage(
+          classId: _activeClass!.id,
+          className: _activeClass!.displayName ?? _activeClass!.name,
+        )));
   }
 
-  void _goStudentDetail(StudentModel s) {
-    Navigator.pushNamed(context, '/students/detail', arguments: s.id);
+  void _goClassMarksOverview() {
+    if (_activeClass == null) return;
+    Navigator.push(
+        context,
+        _slide(ClassMarksOverviewPage(
+          classId: _activeClass!.id,
+          className: _activeClass!.displayName ?? _activeClass!.name,
+        )));
   }
 
   void _goAttendanceHistory(StudentModel s) {
@@ -167,14 +190,15 @@ class _MyClassesPageState extends State<MyClassesPage>
   }
 
   PageRouteBuilder _slide(Widget page) => PageRouteBuilder(
-    pageBuilder: (_, __, ___) => page,
-    transitionsBuilder: (_, anim, __, child) => SlideTransition(
-      position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
-          .animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
-      child: child,
-    ),
-    transitionDuration: const Duration(milliseconds: 320),
-  );
+        pageBuilder: (_, __, ___) => page,
+        transitionsBuilder: (_, anim, __, child) => SlideTransition(
+          position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
+              .animate(
+                  CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+          child: child,
+        ),
+        transitionDuration: const Duration(milliseconds: 320),
+      );
 
   // ── Bottom sheet ──────────────────────────────────────────────────────────
   void _showStudentSheet(StudentModel student) {
@@ -185,10 +209,6 @@ class _MyClassesPageState extends State<MyClassesPage>
       backgroundColor: Colors.transparent,
       builder: (_) => _StudentBottomSheet(
         student: student,
-        onViewProfile: () {
-          Navigator.pop(context);
-          _goStudentDetail(student);
-        },
         onAttendanceHistory: () {
           Navigator.pop(context);
           _goAttendanceHistory(student);
@@ -197,7 +217,8 @@ class _MyClassesPageState extends State<MyClassesPage>
     );
   }
 
-  void _showBulkRollNumberUpdate(ClassModel classModel, List<StudentModel> students) {
+  void _showBulkRollNumberUpdate(
+      ClassModel classModel, List<StudentModel> students) {
     showDialog(
       context: context,
       builder: (context) => BulkRollNumberDialog(
@@ -225,7 +246,8 @@ class _MyClassesPageState extends State<MyClassesPage>
         automaticallyImplyLeading: false,
         title: const Text(
           'My Class',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
+          style: TextStyle(
+              fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
         ),
         actions: [
           IconButton(
@@ -260,7 +282,8 @@ class _MyClassesPageState extends State<MyClassesPage>
           // ── Error ──
           if (vm.classError != null && vm.classes.isEmpty) {
             return Center(
-              child: CustomErrorWidget(message: vm.classError!, onRetry: _loadData),
+              child: CustomErrorWidget(
+                  message: vm.classError!, onRetry: _loadData),
             );
           }
 
@@ -299,7 +322,9 @@ class _MyClassesPageState extends State<MyClassesPage>
                           onAttendance: _goAttendance,
                           onExams: _goExams,
                           onMarks: _goMarks,
-                          onRollNo: () => _showBulkRollNumberUpdate(_activeClass!, _students),
+                          onRollNo: () => _showBulkRollNumberUpdate(
+                              _activeClass!, _students),
+                          onClassMarks: _goClassMarksOverview,
                         ),
                         const SizedBox(height: 24),
                       ],
@@ -403,7 +428,8 @@ class _HeroClassCard extends StatelessWidget {
             children: [
               // Badge
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.18),
                   borderRadius: const BorderRadius.all(Radius.circular(20)),
@@ -411,11 +437,15 @@ class _HeroClassCard extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.verified_rounded, size: 12, color: Colors.white70),
+                    const Icon(Icons.verified_rounded,
+                        size: 12, color: Colors.white70),
                     const SizedBox(width: 5),
                     const Text(
                       'Class Teacher',
-                      style: TextStyle(fontSize: 11, color: Colors.white70, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.white70,
+                          fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
@@ -482,7 +512,8 @@ class _HeroStat extends StatelessWidget {
   final IconData icon;
   final String value;
   final String label;
-  const _HeroStat({required this.icon, required this.value, required this.label});
+  const _HeroStat(
+      {required this.icon, required this.value, required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -493,8 +524,13 @@ class _HeroStat extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-            Text(label, style: const TextStyle(fontSize: 10, color: Colors.white60)),
+            Text(value,
+                style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white)),
+            Text(label,
+                style: const TextStyle(fontSize: 10, color: Colors.white60)),
           ],
         ),
       ],
@@ -510,54 +546,62 @@ class _QuickActionsRow extends StatelessWidget {
   final VoidCallback onExams;
   final VoidCallback onMarks;
   final VoidCallback onRollNo;
+  final VoidCallback onClassMarks;
   const _QuickActionsRow({
     required this.onAttendance,
     required this.onExams,
     required this.onMarks,
     required this.onRollNo,
+    required this.onClassMarks,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: _ActionCard(
-          icon: Icons.fact_check_rounded,
-          title: 'Attendance',
-          subtitle: 'Mark today',
-          color: _C.primary,
-          bg: _C.indigo10,
-          onTap: onAttendance,
-        )),
-        const SizedBox(width: 10),
-        Expanded(child: _ActionCard(
-          icon: Icons.assignment_rounded,
-          title: 'Exams',
-          subtitle: 'Schedule',
-          color: _C.secondary,
-          bg: _C.purple10,
-          onTap: onExams,
-        )),
-        const SizedBox(width: 10),
-        Expanded(child: _ActionCard(
-          icon: Icons.edit_note_rounded,
-          title: 'Marks',
-          subtitle: 'Enter marks',
-          color: _C.teal,
-          bg: _C.teal10,
-          onTap: onMarks,
-        )),
-        const SizedBox(width: 10),
-        Expanded(child: _ActionCard(
-          icon: Icons.numbers_rounded,
-          title: 'Roll No',
-          subtitle: 'Update',
-          color: _C.sky,
-          bg: _C.sky10,
-          onTap: onRollNo,
-        )),
-      ],
-    );
+    return Column(children: [
+      Row(
+        children: [
+          Expanded(
+              child: _ActionCard(
+            icon: Icons.fact_check_rounded,
+            title: 'Attendance',
+            subtitle: 'Mark today',
+            color: _C.primary,
+            bg: _C.indigo10,
+            onTap: onAttendance,
+          )),
+          const SizedBox(width: 10),
+          Expanded(
+              child: _ActionCard(
+            icon: Icons.assignment_rounded,
+            title: 'Exams',
+            subtitle: 'Schedule',
+            color: _C.secondary,
+            bg: _C.purple10,
+            onTap: onExams,
+          )),
+          const SizedBox(width: 10),
+          Expanded(
+              child: _ActionCard(
+            icon: Icons.edit_note_rounded,
+            title: 'Marks',
+            subtitle: 'Enter marks',
+            color: _C.teal,
+            bg: _C.teal10,
+            onTap: onMarks,
+          )),
+          const SizedBox(width: 10),
+          Expanded(
+              child: _ActionCard(
+            icon: Icons.numbers_rounded,
+            title: 'Roll No',
+            subtitle: 'Update',
+            color: _C.sky,
+            bg: _C.sky10,
+            onTap: onRollNo,
+          )),
+        ],
+      ),
+    ]);
   }
 }
 
@@ -568,6 +612,7 @@ class _ActionCard extends StatefulWidget {
   final Color color;
   final Color bg;
   final VoidCallback onTap;
+  final bool isWide;
   const _ActionCard({
     required this.icon,
     required this.title,
@@ -575,6 +620,7 @@ class _ActionCard extends StatefulWidget {
     required this.color,
     required this.bg,
     required this.onTap,
+    this.isWide = false,
   });
 
   @override
@@ -589,13 +635,17 @@ class _ActionCardState extends State<_ActionCard>
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 110));
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 110));
     _scale = Tween<double>(begin: 1.0, end: 0.94)
         .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
   }
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -603,40 +653,87 @@ class _ActionCardState extends State<_ActionCard>
       scale: _scale,
       child: GestureDetector(
         onTapDown: (_) => _ctrl.forward(),
-        onTapUp: (_) { _ctrl.reverse(); widget.onTap(); },
+        onTapUp: (_) {
+          _ctrl.reverse();
+          widget.onTap();
+        },
         onTapCancel: () => _ctrl.reverse(),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+          padding: EdgeInsets.symmetric(
+              vertical: widget.isWide ? 12 : 16,
+              horizontal: widget.isWide ? 16 : 12),
           decoration: BoxDecoration(
             color: widget.bg,
             borderRadius: _C.r20,
             boxShadow: _C.shadowSm(),
           ),
-          child: Column(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: widget.color.withOpacity(0.14),
-                  borderRadius: const BorderRadius.all(Radius.circular(14)),
+          child: widget.isWide
+              ? Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: widget.color.withOpacity(0.14),
+                        borderRadius:
+                            const BorderRadius.all(Radius.circular(14)),
+                      ),
+                      child: Icon(widget.icon, color: widget.color, size: 22),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.title,
+                            style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: _C.text1),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.subtitle,
+                            style:
+                                const TextStyle(fontSize: 12, color: _C.text3),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.arrow_forward_ios_rounded,
+                        size: 14, color: widget.color),
+                  ],
+                )
+              : Column(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: widget.color.withOpacity(0.14),
+                        borderRadius:
+                            const BorderRadius.all(Radius.circular(14)),
+                      ),
+                      child: Icon(widget.icon, color: widget.color, size: 22),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      widget.title,
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: _C.text1),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      widget.subtitle,
+                      style: const TextStyle(fontSize: 10, color: _C.text3),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
-                child: Icon(widget.icon, color: widget.color, size: 22),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                widget.title,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: _C.text1),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                widget.subtitle,
-                style: const TextStyle(fontSize: 10, color: _C.text3),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -671,10 +768,12 @@ class _SearchBar extends StatelessWidget {
         decoration: InputDecoration(
           hintText: 'Search by name, roll no, admission no...',
           hintStyle: const TextStyle(fontSize: 13, color: _C.text3),
-          prefixIcon: const Icon(Icons.search_rounded, color: _C.text3, size: 20),
+          prefixIcon:
+              const Icon(Icons.search_rounded, color: _C.text3, size: 20),
           suffixIcon: controller.text.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.close_rounded, color: _C.text3, size: 18),
+                  icon: const Icon(Icons.close_rounded,
+                      color: _C.text3, size: 18),
                   onPressed: onClear,
                 )
               : null,
@@ -693,21 +792,31 @@ class _StatsRow extends StatelessWidget {
   final int total;
   final int boys;
   final int girls;
-  const _StatsRow({required this.total, required this.boys, required this.girls});
+  const _StatsRow(
+      {required this.total, required this.boys, required this.girls});
 
   @override
   Widget build(BuildContext context) {
     final others = total - boys - girls;
     return Row(
       children: [
-        _StatChip(label: 'Total', value: '$total', color: _C.primary, bg: _C.indigo10),
+        _StatChip(
+            label: 'Total',
+            value: '$total',
+            color: _C.primary,
+            bg: _C.indigo10),
         const SizedBox(width: 8),
         _StatChip(label: 'Boys', value: '$boys', color: _C.sky, bg: _C.sky10),
         const SizedBox(width: 8),
-        _StatChip(label: 'Girls', value: '$girls', color: _C.secondary, bg: _C.purple10),
+        _StatChip(
+            label: 'Girls',
+            value: '$girls',
+            color: _C.secondary,
+            bg: _C.purple10),
         if (others > 0) ...[
           const SizedBox(width: 8),
-          _StatChip(label: 'Other', value: '$others', color: _C.teal, bg: _C.teal10),
+          _StatChip(
+              label: 'Other', value: '$others', color: _C.teal, bg: _C.teal10),
         ],
       ],
     );
@@ -733,9 +842,13 @@ class _StatChip extends StatelessWidget {
       decoration: BoxDecoration(color: bg, borderRadius: _C.r12),
       child: Row(
         children: [
-          Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.bold, color: color)),
           const SizedBox(width: 5),
-          Text(label, style: const TextStyle(fontSize: 11, color: _C.text2, fontWeight: FontWeight.w500)),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 11, color: _C.text2, fontWeight: FontWeight.w500)),
         ],
       ),
     );
@@ -756,7 +869,8 @@ class _StudentList extends StatelessWidget {
       children: students.asMap().entries.map((e) {
         return Padding(
           padding: EdgeInsets.only(bottom: e.key < students.length - 1 ? 8 : 0),
-          child: _StudentCard(student: e.value, index: e.key, onTap: () => onTap(e.value)),
+          child: _StudentCard(
+              student: e.value, index: e.key, onTap: () => onTap(e.value)),
         );
       }).toList(),
     );
@@ -767,7 +881,8 @@ class _StudentCard extends StatefulWidget {
   final StudentModel student;
   final int index;
   final VoidCallback onTap;
-  const _StudentCard({required this.student, required this.index, required this.onTap});
+  const _StudentCard(
+      {required this.student, required this.index, required this.onTap});
 
   @override
   State<_StudentCard> createState() => _StudentCardState();
@@ -780,26 +895,36 @@ class _StudentCardState extends State<_StudentCard>
 
   // Avatar colors rotate through palette
   static const _avatarColors = [
-    Color(0xFF059669), Color(0xFF34D399), Color(0xFF0EA5E9),
-    Color(0xFF14B8A6), Color(0xFFF59E0B), Color(0xFFEF4444),
-    Color(0xFF22C55E), Color(0xFFEC4899),
+    Color(0xFF059669),
+    Color(0xFF34D399),
+    Color(0xFF0EA5E9),
+    Color(0xFF14B8A6),
+    Color(0xFFF59E0B),
+    Color(0xFFEF4444),
+    Color(0xFF22C55E),
+    Color(0xFFEC4899),
   ];
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
+    _ctrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 100));
     _scale = Tween<double>(begin: 1.0, end: 0.97)
         .animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
   }
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   String get _initials {
     final parts = widget.student.fullName.trim().split(' ');
     if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    if (parts.isNotEmpty && parts[0].isNotEmpty) return parts[0][0].toUpperCase();
+    if (parts.isNotEmpty && parts[0].isNotEmpty)
+      return parts[0][0].toUpperCase();
     return '?';
   }
 
@@ -815,7 +940,10 @@ class _StudentCardState extends State<_StudentCard>
       scale: _scale,
       child: GestureDetector(
         onTapDown: (_) => _ctrl.forward(),
-        onTapUp: (_) { _ctrl.reverse(); widget.onTap(); },
+        onTapUp: (_) {
+          _ctrl.reverse();
+          widget.onTap();
+        },
         onTapCancel: () => _ctrl.reverse(),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -865,16 +993,21 @@ class _StudentCardState extends State<_StudentCard>
                     const SizedBox(height: 3),
                     Row(
                       children: [
-                        const Icon(Icons.pin_outlined, size: 12, color: _C.text3),
+                        const Icon(Icons.pin_outlined,
+                            size: 12, color: _C.text3),
                         const SizedBox(width: 3),
-                        Text('Roll $roll', style: const TextStyle(fontSize: 11, color: _C.text2)),
+                        Text('Roll $roll',
+                            style:
+                                const TextStyle(fontSize: 11, color: _C.text2)),
                         const SizedBox(width: 10),
-                        const Icon(Icons.badge_outlined, size: 12, color: _C.text3),
+                        const Icon(Icons.badge_outlined,
+                            size: 12, color: _C.text3),
                         const SizedBox(width: 3),
                         Expanded(
                           child: Text(
                             admNo,
-                            style: const TextStyle(fontSize: 11, color: _C.text2),
+                            style:
+                                const TextStyle(fontSize: 11, color: _C.text2),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -886,7 +1019,8 @@ class _StudentCardState extends State<_StudentCard>
               ),
 
               // Chevron
-              const Icon(Icons.chevron_right_rounded, size: 20, color: _C.text3),
+              const Icon(Icons.chevron_right_rounded,
+                  size: 20, color: _C.text3),
             ],
           ),
         ),
@@ -900,12 +1034,10 @@ class _StudentCardState extends State<_StudentCard>
 // ─────────────────────────────────────────────────────────────────────────────
 class _StudentBottomSheet extends StatelessWidget {
   final StudentModel student;
-  final VoidCallback onViewProfile;
   final VoidCallback onAttendanceHistory;
 
   const _StudentBottomSheet({
     required this.student,
-    required this.onViewProfile,
     required this.onAttendanceHistory,
   });
 
@@ -933,7 +1065,8 @@ class _StudentBottomSheet extends StatelessWidget {
   String get _initials {
     final parts = student.fullName.trim().split(' ');
     if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    if (parts.isNotEmpty && parts[0].isNotEmpty) return parts[0][0].toUpperCase();
+    if (parts.isNotEmpty && parts[0].isNotEmpty)
+      return parts[0][0].toUpperCase();
     return '?';
   }
 
@@ -988,7 +1121,10 @@ class _StudentBottomSheet extends StatelessWidget {
                   child: Center(
                     child: Text(
                       _initials,
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: _C.primary),
+                      style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: _C.primary),
                     ),
                   ),
                 ),
@@ -998,10 +1134,14 @@ class _StudentBottomSheet extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(student.fullName,
-                          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: _C.text1)),
+                          style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: _C.text1)),
                       const SizedBox(height: 2),
                       Text(student.studentCode,
-                          style: const TextStyle(fontSize: 12, color: _C.text3)),
+                          style:
+                              const TextStyle(fontSize: 12, color: _C.text3)),
                     ],
                   ),
                 ),
@@ -1014,25 +1154,45 @@ class _StudentBottomSheet extends StatelessWidget {
 
           // Student info
           _SheetSection(title: 'Student Information'),
-          _InfoRow(icon: Icons.pin_rounded, label: 'Roll Number',    value: student.rollNumber?.isNotEmpty == true ? student.rollNumber! : '—'),
-          _InfoRow(icon: Icons.badge_rounded, label: 'Admission No', value: student.admissionNo?.isNotEmpty == true ? student.admissionNo! : '—'),
+          _InfoRow(
+              icon: Icons.pin_rounded,
+              label: 'Roll Number',
+              value: student.rollNumber?.isNotEmpty == true
+                  ? student.rollNumber!
+                  : '—'),
+          _InfoRow(
+              icon: Icons.badge_rounded,
+              label: 'Admission No',
+              value: student.admissionNo?.isNotEmpty == true
+                  ? student.admissionNo!
+                  : '—'),
           if (student.gender?.isNotEmpty == true)
-            _InfoRow(icon: Icons.person_outline_rounded, label: 'Gender', value: _capitalize(student.gender!)),
+            _InfoRow(
+                icon: Icons.person_outline_rounded,
+                label: 'Gender',
+                value: _capitalize(student.gender!)),
           if (student.bloodGroup?.isNotEmpty == true)
-            _InfoRow(icon: Icons.water_drop_outlined, label: 'Blood Group', value: student.bloodGroup!),
+            _InfoRow(
+                icon: Icons.water_drop_outlined,
+                label: 'Blood Group',
+                value: student.bloodGroup!),
 
           const Divider(height: 1, color: _C.divider),
 
           // Parent info
           _SheetSection(title: 'Parent Information'),
           if (parentName != null)
-            _InfoRow(icon: Icons.family_restroom_rounded, label: 'Parent Name', value: parentName),
+            _InfoRow(
+                icon: Icons.family_restroom_rounded,
+                label: 'Parent Name',
+                value: parentName),
           if (phone != null)
             _InfoRow(icon: Icons.phone_outlined, label: 'Phone', value: phone),
           if (parentName == null && phone == null)
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              child: Text('No parent information available', style: TextStyle(fontSize: 13, color: _C.text3)),
+              child: Text('No parent information available',
+                  style: TextStyle(fontSize: 13, color: _C.text3)),
             ),
 
           const Divider(height: 1, color: _C.divider),
@@ -1048,13 +1208,6 @@ class _StudentBottomSheet extends StatelessWidget {
               onTap: () => _callParent(phone, context),
             ),
           _SheetAction(
-            icon: Icons.person_rounded,
-            label: 'View Profile',
-            color: _C.primary,
-            bg: _C.indigo10,
-            onTap: onViewProfile,
-          ),
-          _SheetAction(
             icon: Icons.calendar_today_rounded,
             label: 'Attendance History',
             color: _C.secondary,
@@ -1067,7 +1220,8 @@ class _StudentBottomSheet extends StatelessWidget {
     );
   }
 
-  String _capitalize(String s) => s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1).toLowerCase()}';
+  String _capitalize(String s) =>
+      s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1).toLowerCase()}';
 }
 
 class _SheetSection extends StatelessWidget {
@@ -1076,24 +1230,25 @@ class _SheetSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(24, 14, 24, 4),
-    child: Text(
-      title,
-      style: const TextStyle(
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-        color: _C.text3,
-        letterSpacing: 0.8,
-      ),
-    ),
-  );
+        padding: const EdgeInsets.fromLTRB(24, 14, 24, 4),
+        child: Text(
+          title,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: _C.text3,
+            letterSpacing: 0.8,
+          ),
+        ),
+      );
 }
 
 class _InfoRow extends StatelessWidget {
   final IconData icon;
   final String label;
   final String value;
-  const _InfoRow({required this.icon, required this.label, required this.value});
+  const _InfoRow(
+      {required this.icon, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -1107,9 +1262,14 @@ class _InfoRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(fontSize: 11, color: _C.text3)),
+                Text(label,
+                    style: const TextStyle(fontSize: 11, color: _C.text3)),
                 const SizedBox(height: 1),
-                Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _C.text1)),
+                Text(value,
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: _C.text1)),
               ],
             ),
           ),
@@ -1148,7 +1308,11 @@ class _SheetAction extends StatelessWidget {
               child: Icon(icon, color: color, size: 18),
             ),
             const SizedBox(width: 14),
-            Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: _C.text1)),
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _C.text1)),
             const Spacer(),
             const Icon(Icons.chevron_right_rounded, size: 18, color: _C.text3),
           ],
@@ -1201,12 +1365,14 @@ class _NoClassState extends StatelessWidget {
                 color: _C.indigo10,
                 borderRadius: const BorderRadius.all(Radius.circular(28)),
               ),
-              child: const Icon(Icons.class_outlined, size: 44, color: _C.primary),
+              child:
+                  const Icon(Icons.class_outlined, size: 44, color: _C.primary),
             ),
             const SizedBox(height: 20),
             const Text(
               'No Class Assigned',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: _C.text1),
+              style: TextStyle(
+                  fontSize: 20, fontWeight: FontWeight.bold, color: _C.text1),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -1239,10 +1405,12 @@ class _EmptyStudents extends StatelessWidget {
           Icon(Icons.people_outline_rounded, size: 52, color: _C.text3),
           SizedBox(height: 14),
           Text('No Students Yet',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _C.text1)),
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.bold, color: _C.text1)),
           SizedBox(height: 6),
           Text('No students are enrolled in this class.',
-              style: TextStyle(fontSize: 13, color: _C.text2), textAlign: TextAlign.center),
+              style: TextStyle(fontSize: 13, color: _C.text2),
+              textAlign: TextAlign.center),
         ],
       ),
     );
@@ -1256,15 +1424,19 @@ class _SelectClassPrompt extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(36),
-      decoration: BoxDecoration(color: _C.surface, borderRadius: _C.r20, boxShadow: _C.shadowSm()),
+      decoration: BoxDecoration(
+          color: _C.surface, borderRadius: _C.r20, boxShadow: _C.shadowSm()),
       child: const Column(
         children: [
           Icon(Icons.touch_app_rounded, size: 52, color: _C.text3),
           SizedBox(height: 14),
-          Text('Select a Class', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _C.text1)),
+          Text('Select a Class',
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.bold, color: _C.text1)),
           SizedBox(height: 6),
           Text('Tap a class card to load students.',
-              style: TextStyle(fontSize: 13, color: _C.text2), textAlign: TextAlign.center),
+              style: TextStyle(fontSize: 13, color: _C.text2),
+              textAlign: TextAlign.center),
         ],
       ),
     );
@@ -1279,13 +1451,15 @@ class _SearchEmpty extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(36),
-      decoration: BoxDecoration(color: _C.surface, borderRadius: _C.r20, boxShadow: _C.shadowSm()),
+      decoration: BoxDecoration(
+          color: _C.surface, borderRadius: _C.r20, boxShadow: _C.shadowSm()),
       child: Column(
         children: [
           const Icon(Icons.search_off_rounded, size: 52, color: _C.text3),
           const SizedBox(height: 14),
           const Text('No Results Found',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: _C.text1)),
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.bold, color: _C.text1)),
           const SizedBox(height: 6),
           Text(
             'No student matches "$query".\nTry a different name or number.',

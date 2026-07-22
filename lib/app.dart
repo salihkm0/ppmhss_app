@@ -5,7 +5,10 @@ import 'package:school_management/screens/dashboard_screen.dart';
 import 'package:school_management/screens/login_screen.dart';
 import 'package:school_management/screens/parent_registration_screen.dart';
 import 'package:school_management/screens/splash_screen.dart';
+import 'package:school_management/screens/update/update_screen.dart';
+import 'package:school_management/services/auth_service.dart';
 import 'package:school_management/utils/theme.dart';
+import 'dart:io' show Platform;
 
 // Student Screens
 import 'package:school_management/screens/students/student_list_screen.dart';
@@ -65,6 +68,7 @@ import 'package:school_management/screens/maintenance_screen.dart';
 import 'package:school_management/store/app_state.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class SchoolApp extends StatefulWidget {
   final SharedPreferences prefs;
@@ -83,14 +87,33 @@ class SchoolApp extends StatefulWidget {
 class _SchoolAppState extends State<SchoolApp> {
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   bool _authChecked = false;
+  Map<String, dynamic>? _updateConfig;
+  bool _skipSoftUpdate = false;
 
   @override
   void initState() {
     super.initState();
-    _checkAuth();
+    _checkAppVersionAndAuth();
   }
 
-  void _checkAuth() async {
+  void _checkAppVersionAndAuth() async {
+    // 1. Check App Version First
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final currentVersion = packageInfo.version;
+      final platform = Platform.isIOS ? 'ios' : 'android';
+      
+      final config = await AuthService().checkAppVersion(platform: platform, version: currentVersion);
+      if (mounted) {
+        setState(() {
+          _updateConfig = config;
+        });
+      }
+    } catch (e) {
+      print('Failed to check app version: $e');
+    }
+
+    // 2. Then check auth
     final token = widget.prefs.getString('token');
     print('🔐 Token found: ${token != null}');
     
@@ -121,26 +144,31 @@ class _SchoolAppState extends State<SchoolApp> {
         if (!_authChecked || state.auth.isLoading) {
           return const SplashScreen();
         }
-        
-        // Show dashboard if authenticated
-        if (state.auth.isAuthenticated && state.auth.user != null) {
-          return MaterialApp(
-            title: 'PPMHSS',
-            debugShowCheckedModeBanner: false,
-            theme: _buildTheme(),
-            navigatorKey: _navigatorKey,
-            home: const DashboardScreen(),
-            onGenerateRoute: _generateRoute,
+
+        Widget currentHome;
+        if (_updateConfig != null && _updateConfig!['forceUpdate'] == true) {
+          currentHome = UpdateScreen(updateConfig: _updateConfig!);
+        } else if (_updateConfig != null && _updateConfig!['softUpdate'] == true && !_skipSoftUpdate) {
+          currentHome = UpdateScreen(
+            updateConfig: _updateConfig!,
+            onSkip: () {
+              setState(() {
+                _skipSoftUpdate = true;
+              });
+            },
           );
+        } else if (state.auth.isAuthenticated && state.auth.user != null) {
+          currentHome = const DashboardScreen();
+        } else {
+          currentHome = const LoginScreen();
         }
-        
-        // Show login screen
+
         return MaterialApp(
           title: 'PPMHSS',
           debugShowCheckedModeBanner: false,
           theme: _buildTheme(),
           navigatorKey: _navigatorKey,
-          initialRoute: '/login',
+          home: currentHome,
           routes: {
             '/login': (context) => const LoginScreen(),
             '/register-parent': (context) => const ParentRegistrationScreen(),

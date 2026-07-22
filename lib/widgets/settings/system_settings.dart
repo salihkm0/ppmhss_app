@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:school_management/utils/theme.dart';
+import 'package:school_management/services/auth_service.dart';
+import 'dart:io' show Platform;
 
 class SystemSettings extends StatefulWidget {
   const SystemSettings({super.key});
@@ -24,6 +26,107 @@ class _SystemSettingsState extends State<SystemSettings> {
     {'grade': 'E', 'min': 0, 'max': 19, 'color': Colors.grey},
   ];
 
+  Future<void> _showAppUpdatesDialog() async {
+    final platform = Platform.isIOS ? 'ios' : 'android';
+    Map<String, dynamic>? currentConfig;
+    
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (c) => const Center(child: CircularProgressIndicator()),
+      );
+      
+      currentConfig = await AuthService().checkAppVersion(platform: platform, version: '0.0.0');
+      
+      if (!mounted) return;
+      Navigator.pop(context); // close loading
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // close loading
+      _showMessage('Failed to load config: $e');
+      return;
+    }
+
+    if (!mounted) return;
+
+    final minController = TextEditingController(text: currentConfig['minVersion']);
+    final latestController = TextEditingController(text: currentConfig['latestVersion']);
+    final storeUrlController = TextEditingController(text: currentConfig['storeUrl']);
+    
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('App Updates Config ($platform)'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: latestController,
+                  decoration: const InputDecoration(
+                    labelText: 'Latest Version (e.g. 1.0.5)',
+                    helperText: 'Soft update for older versions',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: minController,
+                  decoration: const InputDecoration(
+                    labelText: 'Minimum Required Version (e.g. 1.0.0)',
+                    helperText: 'Forced update for older versions',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: storeUrlController,
+                  decoration: const InputDecoration(
+                    labelText: 'Store URL',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await AuthService().updateAppVersionConfig({
+                    'platform': platform,
+                    'minVersion': minController.text,
+                    'latestVersion': latestController.text,
+                    'storeUrl': storeUrlController.text,
+                  });
+                  if (dialogContext.mounted) {
+                    Navigator.pop(dialogContext);
+                  }
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('App Updates Config saved successfully')),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Failed to save: $e')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -39,6 +142,13 @@ class _SystemSettingsState extends State<SystemSettings> {
               subtitle: 'Put the system in maintenance mode',
               value: _maintenanceMode,
               onChanged: (value) => setState(() => _maintenanceMode = value),
+            ),
+            _buildButtonTile(
+              title: 'App Updates',
+              subtitle: 'Configure forced & optional updates',
+              buttonText: 'Configure',
+              buttonColor: AppTheme.primaryColor,
+              onPressed: _showAppUpdatesDialog,
             ),
             _buildButtonTile(
               title: 'Backup Database',

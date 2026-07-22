@@ -6,6 +6,9 @@ import 'package:school_management/widgets/common/custom_button.dart';
 import 'package:school_management/widgets/common/custom_text_field.dart';
 import 'package:school_management/utils/theme.dart';
 import 'package:intl/intl.dart';
+import 'package:school_management/services/auth_service.dart';
+import 'package:school_management/actions/auth_actions.dart';
+import 'package:school_management/actions/dashboard_actions.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -36,19 +39,135 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _isUpdating = true;
       });
       
-      // TODO: Implement profile update API call when backend endpoint is ready
-      await Future.delayed(const Duration(seconds: 1));
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated successfully'), backgroundColor: Colors.green),
-        );
-        setState(() {
-          _isEditing = false;
-          _isUpdating = false;
+      try {
+        await AuthService().updateProfile({
+          'name': _nameController.text.trim(),
         });
+        
+        if (mounted) {
+          // Update Redux state
+          final store = StoreProvider.of<AppState>(context, listen: false);
+          store.dispatch(getMeThunk(GetMeAction()));
+          
+          // Refresh dashboard data as well so name/phone updates everywhere
+          final role = store.state.auth.user?.role;
+          if (role == 'staff') {
+            store.dispatch(fetchStaffDashboardThunk());
+          } else if (role == 'parent') {
+            store.dispatch(fetchParentDashboardThunk());
+          }
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Profile updated successfully'), backgroundColor: Colors.green),
+          );
+          setState(() {
+            _isEditing = false;
+            _isUpdating = false;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
+          );
+          setState(() {
+            _isUpdating = false;
+          });
+        }
       }
     }
+  }
+
+  void _showChangePasswordDialog() {
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool isSubmitting = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Change Password'),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CustomTextField(
+                      controller: currentPasswordController,
+                      label: 'Current Password',
+                      obscureText: true,
+                      validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                    ),
+                    const SizedBox(height: 16),
+                    CustomTextField(
+                      controller: newPasswordController,
+                      label: 'New Password',
+                      obscureText: true,
+                      validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                    ),
+                    const SizedBox(height: 16),
+                    CustomTextField(
+                      controller: confirmPasswordController,
+                      label: 'Confirm New Password',
+                      obscureText: true,
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'Required';
+                        if (v != newPasswordController.text) return 'Passwords do not match';
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting ? null : () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          if (formKey.currentState!.validate()) {
+                            setState(() => isSubmitting = true);
+                            try {
+                              await AuthService().changePassword(
+                                currentPassword: currentPasswordController.text,
+                                newPassword: newPasswordController.text,
+                              );
+                              if (context.mounted) {
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Password changed successfully'), backgroundColor: Colors.green),
+                                );
+                              }
+                            } catch (e) {
+                              setState(() => isSubmitting = false);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(e.toString().replaceAll('Exception:', '').trim()), backgroundColor: Colors.red),
+                                );
+                              }
+                            }
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryColor),
+                  child: isSubmitting 
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
+                    : const Text('Change', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -89,7 +208,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             height: 100,
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
-                                colors: [AppTheme.primaryColor, AppTheme.primaryColor.withOpacity(0.7)],
+                                colors: [AppTheme.primaryColor, AppTheme.primaryColor.withValues(alpha: 0.7)],
                               ),
                               shape: BoxShape.circle,
                             ),
@@ -112,7 +231,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                             decoration: BoxDecoration(
-                              color: AppTheme.primaryColor.withOpacity(0.1),
+                              color: AppTheme.primaryColor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
@@ -219,11 +338,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 // Change Password Button
                 CustomButton(
                   text: 'Change Password',
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Change password feature coming soon')),
-                    );
-                  },
+                  onPressed: _showChangePasswordDialog,
                   icon: Icons.lock_outline,
                   isOutlined: true,
                   isFullWidth: true,

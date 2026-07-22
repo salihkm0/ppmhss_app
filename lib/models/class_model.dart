@@ -10,6 +10,7 @@ class ClassModel {
   final String? academicYearId;
   final String? displayName;
   final String? studentSortPreference;
+  final List<dynamic>? subjectTeachers;
 
   ClassModel({
     required this.id,
@@ -23,6 +24,7 @@ class ClassModel {
     this.academicYearId,
     this.displayName,
     this.studentSortPreference,
+    this.subjectTeachers,
   });
 
   factory ClassModel.fromJson(Map<String, dynamic> json) {
@@ -47,6 +49,7 @@ class ClassModel {
               ? '${json['name']} - ${json['section']}'
               : json['name']?.toString()),
       studentSortPreference: json['studentSortPreference']?.toString(),
+      subjectTeachers: json['subjectTeachers'] as List?,
     );
   }
 

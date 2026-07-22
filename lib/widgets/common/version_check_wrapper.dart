@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:school_management/services/version_service.dart';
 import 'package:school_management/utils/theme.dart';
 import 'package:school_management/widgets/common/loading_widget.dart';
@@ -18,6 +19,7 @@ class _VersionCheckWrapperState extends State<VersionCheckWrapper> {
   bool _isLoading = true;
   VersionCheckResult? _result;
   bool _dismissedSoftUpdate = false;
+  String _appVersion = '';
 
   @override
   void initState() {
@@ -27,6 +29,12 @@ class _VersionCheckWrapperState extends State<VersionCheckWrapper> {
 
   Future<void> _checkVersion() async {
     final result = await _versionService.checkVersion();
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      _appVersion = packageInfo.version;
+    } catch (e) {
+      print('Failed to get app version: $e');
+    }
     setState(() {
       _result = result;
       _isLoading = false;
@@ -85,9 +93,8 @@ class _VersionCheckWrapperState extends State<VersionCheckWrapper> {
         child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              const Spacer(),
               const Icon(
                 Icons.system_update_rounded,
                 size: 100,
@@ -131,6 +138,19 @@ class _VersionCheckWrapperState extends State<VersionCheckWrapper> {
                   ),
                 ),
               ),
+              const Spacer(),
+              if (_appVersion.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: Text(
+                    'v$_appVersion',
+                    style: TextStyle(
+                      color: Colors.grey[400],
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
