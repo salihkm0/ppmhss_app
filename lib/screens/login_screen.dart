@@ -10,6 +10,7 @@ import 'package:school_management/utils/theme.dart';
 import 'package:school_management/services/biometric_service.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:school_management/screens/auth/forgot_password_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -478,10 +479,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                         ),
                                       ],
                                     ),
-                                    TextButton(
-                                      onPressed: () {
-                                        PopupNotification.showInfo(context, 'Password reset link will be sent to your email');
-                                      },
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(builder: (context) => const ForgotPasswordScreen()),
+                                          );
+                                        },
                                       style: TextButton.styleFrom(
                                         padding: EdgeInsets.zero,
                                         minimumSize: Size.zero,

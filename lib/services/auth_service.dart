@@ -1,6 +1,7 @@
 import 'package:school_management/services/api_service.dart';
 import 'package:school_management/config/api_config.dart';
 import 'package:school_management/models/user_model.dart';
+import 'package:school_management/utils/device_info_helper.dart';
 import 'package:dio/dio.dart';
 
 class AuthService {
@@ -17,6 +18,11 @@ class AuthService {
         'password': password,
         'rememberMe': rememberMe,
       };
+      
+      final deviceInfo = await DeviceInfoHelper.getDeviceInfo();
+      if (deviceInfo.isNotEmpty) {
+        requestBody['deviceInfo'] = deviceInfo;
+      }
       
       if (email != null && email.isNotEmpty) {
         requestBody['email'] = email;
@@ -92,8 +98,46 @@ class AuthService {
     }
   }
 
+  Future<Map<String, dynamic>> forgotPassword(String email) async {
+    try {
+      final response = await _api.post(ApiConfig.forgotPassword, data: {'email': email});
+      return response.data;
+    } on DioException catch (e) {
+      print('Forgot password error: ${e.response?.data}');
+      if (e.response?.data != null) {
+        throw Exception(e.response?.data['message'] ?? 'Failed to send OTP');
+      }
+      throw Exception('Network error: ${e.message}');
+    }
+  }
+
+  Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await _api.post(ApiConfig.resetPassword, data: {
+        'email': email,
+        'otp': otp,
+        'password': newPassword,
+      });
+      return response.data;
+    } on DioException catch (e) {
+      print('Reset password error: ${e.response?.data}');
+      if (e.response?.data != null) {
+        throw Exception(e.response?.data['message'] ?? 'Failed to reset password');
+      }
+      throw Exception('Network error: ${e.message}');
+    }
+  }
+
   Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> data) async {
     try {
+      final deviceInfo = await DeviceInfoHelper.getDeviceInfo();
+      if (deviceInfo.isNotEmpty) {
+        data['deviceInfo'] = deviceInfo;
+      }
       final response = await _api.put(ApiConfig.updateProfile, data: data);
       return response.data;
     } on DioException catch (e) {

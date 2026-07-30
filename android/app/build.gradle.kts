@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -5,8 +8,14 @@ plugins {
     id("com.google.gms.google-services")
 }
 
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
 android {
-    namespace = "com.example.ppmhss_app"
+    namespace = "com.schoolmanagement.ppmhss"
     compileSdk = 36
     ndkVersion = "28.2.13676358"
 
@@ -20,8 +29,20 @@ android {
         jvmTarget = "17"
     }
 
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties.getProperty("keyAlias")
+            keyPassword = keystoreProperties.getProperty("keyPassword")
+            val storeFileProp = keystoreProperties.getProperty("storeFile")
+            if (storeFileProp != null) {
+                storeFile = file(storeFileProp)
+            }
+            storePassword = keystoreProperties.getProperty("storePassword")
+        }
+    }
+
     defaultConfig {
-        applicationId = "com.example.ppmhss_app"
+        applicationId = "com.schoolmanagement.ppmhss"
         minSdk = flutter.minSdkVersion
         targetSdk = 36
         versionCode = 1
@@ -33,7 +54,7 @@ android {
         getByName("release") {
             isMinifyEnabled = false
             isShrinkResources = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }

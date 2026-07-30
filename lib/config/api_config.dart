@@ -20,6 +20,8 @@ class ApiConfig {
   static const String changePassword = '/auth/change-password';
   static const String updateProfile = '/auth/profile';
   static const String registerParent = '/parents/register';
+  static const String forgotPassword = '/auth/forgot-password';
+  static const String resetPassword = '/auth/reset-password';
   
   // Student endpoints
   static const String students = '/students';

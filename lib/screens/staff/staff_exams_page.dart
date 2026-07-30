@@ -136,8 +136,8 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
               
           return _ExamViewModel(
             exams: filteredExams,
-            isLoading: store.state.exams.isLoading,
-            error: store.state.exams.error,
+            isLoading: store.state.exams.isLoading || store.state.classes.isLoading,
+            error: store.state.exams.error ?? store.state.classes.error,
             teacherClasses: store.state.classes.teacherClasses,
             currentUserId: store.state.auth.user?.id ?? store.state.auth.user?.staffId,
           );

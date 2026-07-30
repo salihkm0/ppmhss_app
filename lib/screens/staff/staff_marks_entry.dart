@@ -53,6 +53,11 @@ class _MarkService {
     _api.invalidateCache('/marks');
     await _api.post('/marks/bulk/$examId/$classId', data: {'studentsData': studentsData});
   }
+
+  Future<void> submitMarksForReview({required String examId, required String classId}) async {
+    _api.invalidateCache('/marks');
+    await _api.post('/marks/submit', data: {'examId': examId, 'classId': classId});
+  }
 }
 
 // ── Main Widget ──────────────────────────────────────────────────
@@ -242,9 +247,9 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
               (subj['ceScore'] as num? ?? subj['ceMarks'] as num? ?? 0) > 0 ||
               subj['isAbsent'] == true;
           initial[sid]![key] = {
-            'theoryScore':    isEntered ? (subj['theoryScore']   ?? 0) : '',
-            'practicalScore': isEntered ? (subj['practicalScore'] ?? 0) : '',
-            'ceMarks':        isEntered ? (subj['ceScore'] ?? subj['ceMarks'] ?? 0) : '',
+            'theoryScore':    (isEntered && subj['theoryScore']?.toString() != '0') ? (subj['theoryScore'] ?? '') : '',
+            'practicalScore': (isEntered && subj['practicalScore']?.toString() != '0') ? (subj['practicalScore'] ?? '') : '',
+            'ceMarks':        (isEntered && (subj['ceScore'] ?? subj['ceMarks'])?.toString() != '0') ? (subj['ceScore'] ?? subj['ceMarks'] ?? '') : '',
             'isAbsent':  subj['isAbsent'] ?? false,
             'isEntered': isEntered,
           };
@@ -296,9 +301,11 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
 
   bool get _isAdmin => _permissions?['isAdmin'] == true;
   bool get _isClassTeacher => _permissions?['isClassTeacher'] == true;
+  bool get _canSubmit => _permissions?['canSubmit'] == true;
   bool get _hasEditPermission =>
       _isAdmin ||
-      ((_permissions?['allowedSubjects'] as List?)?.isNotEmpty ?? false);
+      (_permissions?['allowedSubjects'] != null &&
+          (_permissions!['allowedSubjects'] as List).isNotEmpty);
 
   bool _canEditSubject(String examSubjectId) {
     if (_permissions == null) return false;
@@ -373,7 +380,12 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
         'theoryScore': '', 'practicalScore': '', 'ceMarks': '', 'isAbsent': false, 'isEntered': false,
       });
       curr[field] = parsed ?? '';
-      curr['isEntered'] = true;
+      
+      final hasTheory = curr['theoryScore'].toString().isNotEmpty;
+      final hasPrac = curr['practicalScore'].toString().isNotEmpty;
+      final hasCE = curr['ceMarks'].toString().isNotEmpty;
+      
+      curr['isEntered'] = hasTheory || hasPrac || hasCE || (curr['isAbsent'] == true);
       _tempMarks[studentId]![examSubjectId] = curr;
     });
   }
@@ -502,21 +514,30 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
       final studentsData = targets.map((student) {
         final sid = student['studentId']?.toString() ?? '';
         final subjs = (student['subjects'] as List? ?? []).cast<Map<String, dynamic>>();
-        return {
-          'studentId': sid,
-          'subjects': subjs.map((subj) {
-            final key = subj['examSubjectId']?.toString() ?? subj['subjectId']?.toString() ?? '';
-            final tm = _tempMarks[sid]?[key] ?? {};
-            return {
+
+        final filteredSubjects = <Map<String, dynamic>>[];
+
+        for (final subj in subjs) {
+          final key = subj['examSubjectId']?.toString() ?? subj['subjectId']?.toString() ?? '';
+          final tm = _tempMarks[sid]?[key];
+          final isPreviouslyEntered = subj['isEntered'] == true;
+
+          if (tm != null || isPreviouslyEntered) {
+            filteredSubjects.add({
               'examSubjectId': subj['examSubjectId'] ?? subj['subjectId'],
               'subjectId':     subj['actualSubjectId'] ?? subj['subjectId'],
-              'theoryScore':    (tm['theoryScore'] == '' ? 0 : tm['theoryScore']) ?? subj['theoryScore'] ?? 0,
-              'practicalScore': (tm['practicalScore'] == '' ? 0 : tm['practicalScore']) ?? subj['practicalScore'] ?? 0,
-              'ceMarks':        (tm['ceMarks'] == '' ? 0 : tm['ceMarks']) ?? (subj['ceMarks'] ?? subj['ceScore']) ?? 0,
-              'isAbsent': tm['isAbsent'] ?? subj['isAbsent'] ?? false,
-              'remarks':  subj['remarks'] ?? '',
-            };
-          }).toList(),
+              'theoryScore':    tm != null ? (tm['theoryScore'] == '' ? 0 : tm['theoryScore']) : (subj['theoryScore'] ?? 0),
+              'practicalScore': tm != null ? (tm['practicalScore'] == '' ? 0 : tm['practicalScore']) : (subj['practicalScore'] ?? 0),
+              'ceMarks':        tm != null ? (tm['ceMarks'] == '' ? 0 : tm['ceMarks']) : (subj['ceMarks'] ?? subj['ceScore'] ?? 0),
+              'isAbsent':       tm != null ? tm['isAbsent'] : (subj['isAbsent'] ?? false),
+              'remarks':        subj['remarks'] ?? '',
+            });
+          }
+        }
+
+        return {
+          'studentId': sid,
+          'subjects': filteredSubjects,
           'remarks': student['remarks'] ?? '',
         };
       }).toList();
@@ -529,6 +550,53 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
     } catch (e) {
       if (mounted) setState(() => _isSaving = false);
       _showSnack('Failed to save marks: $e', isError: true);
+    }
+  }
+
+  Future<void> _handleSubmitForReview() async {
+    final examId = _selectedExamId;
+    if (examId == null) return;
+
+    if (_dirtyStudents.isNotEmpty) {
+      _showSnack('Please save your changes first', isError: true);
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Submit for Review?'),
+        content: const Text('Marks will be submitted for review and locked for editing. Are you sure?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber[700],
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    if (mounted) setState(() => _isSaving = true);
+    try {
+      await _markService.submitMarksForReview(examId: examId, classId: widget.classId);
+      if (mounted) setState(() => _isSaving = false);
+      _showSnack('Marks submitted for review successfully');
+      await _loadData(); // refresh to lock editing
+    } catch (e) {
+      if (mounted) setState(() => _isSaving = false);
+      _showSnack('Failed to submit for review: $e', isError: true);
     }
   }
 
@@ -641,6 +709,16 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
                   ? 'Save (${_dirtyStudents.length})'
                   : 'Save All',
                   style: TextStyle(color: _isSaving || _hasValidationErrors ? Colors.white54 : Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        if (_canSubmit && _selectedExamId != null && _examSubjects.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: TextButton.icon(
+              onPressed: _isSaving ? null : _handleSubmitForReview,
+              icon: Icon(Icons.send_rounded, color: _isSaving ? Colors.white54 : Colors.amber[300], size: 18),
+              label: Text('Submit for Review',
+                  style: TextStyle(color: _isSaving ? Colors.white54 : Colors.amber[300], fontSize: 13, fontWeight: FontWeight.w600)),
             ),
           ),
       ],
@@ -834,6 +912,7 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
 
     List<DataColumn> columns = [
       const DataColumn(label: Text('Student', style: TextStyle(fontWeight: FontWeight.bold))),
+      const DataColumn(label: Text('Roll No', style: TextStyle(fontWeight: FontWeight.bold))),
     ];
 
     for (var subj in _examSubjects) {
@@ -877,9 +956,12 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
                     ),
                 ],
               ),
-              Text('Roll: ${roll.isNotEmpty ? roll : "N/A"} | Adm: ${admNo.isNotEmpty ? admNo : "N/A"}', style: const TextStyle(color: Colors.grey, fontSize: 11)),
+              Text('Adm No: ${admNo.isNotEmpty ? admNo : "N/A"}', style: const TextStyle(color: Colors.grey, fontSize: 11)),
             ],
           ),
+        ),
+        DataCell(
+          Center(child: Text(roll.isNotEmpty ? roll : "-", style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black87))),
         ),
       ];
 
@@ -914,7 +996,7 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
         if (hasCE) {
           cells.add(DataCell(_buildGridInput(
             fieldKey: 'ceMarks_${sid}_$key',
-            value: isAbsent ? '0' : (cVal?.toString() ?? ''),
+            value: isAbsent ? '0' : (cVal?.toString() == '0' ? '' : (cVal?.toString() ?? '')),
             enabled: canEdit && !isAbsent,
             isAbsent: isAbsent,
             hasError: ceError,
@@ -926,7 +1008,7 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
         // TE Cell
         cells.add(DataCell(_buildGridInput(
           fieldKey: 'theoryScore_${sid}_$key',
-          value: isAbsent ? '0' : (tVal?.toString() ?? ''),
+          value: isAbsent ? '0' : (tVal?.toString() == '0' ? '' : (tVal?.toString() ?? '')),
           enabled: canEdit && !isAbsent,
           isAbsent: isAbsent,
           hasError: teError,
@@ -938,7 +1020,7 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
         if (hasPrac) {
           cells.add(DataCell(_buildGridInput(
             fieldKey: 'practicalScore_${sid}_$key',
-            value: isAbsent ? '0' : (pVal?.toString() ?? ''),
+            value: isAbsent ? '0' : (pVal?.toString() == '0' ? '' : (pVal?.toString() ?? '')),
             enabled: canEdit && !isAbsent,
             isAbsent: isAbsent,
             hasError: peError,

@@ -99,4 +99,21 @@ class ExamService {
         ? response.data as Map<String, dynamic>
         : {'data': response.data};
   }
+
+  /// Submit marks for review
+  Future<Map<String, dynamic>> submitMarksForReview({
+    required String examId,
+    required String classId,
+  }) async {
+    final response = await _api.post(
+      ApiConfig.marksSubmit,
+      data: {
+        'examId': examId,
+        'classId': classId,
+      },
+    );
+    return response.data is Map<String, dynamic>
+        ? response.data as Map<String, dynamic>
+        : {'data': response.data};
+  }
 }

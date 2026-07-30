@@ -29,7 +29,6 @@ class _ExamsScreenState extends State<ExamsScreen> {
   String? _deleteTargetId;
   String? _cloneTargetId;
   String? _cloneYearId;
-  List<ExamModel> _exams = [];
   bool _isLoading = false;
   bool _showCloneModal = false;
 
@@ -132,10 +131,10 @@ class _ExamsScreenState extends State<ExamsScreen> {
     }
   }
 
-  int _getDraftCount() => _exams.where((e) => e.overallStatus == 'draft').length;
-  int _getSubmittedCount() => _exams.where((e) => e.overallStatus == 'submitted').length;
-  int _getReviewedCount() => _exams.where((e) => e.overallStatus == 'reviewed').length;
-  int _getPublishedCount() => _exams.where((e) => e.overallStatus == 'published').length;
+  int _getDraftCount(List<ExamModel> exams) => exams.where((e) => e.overallStatus == 'draft').length;
+  int _getSubmittedCount(List<ExamModel> exams) => exams.where((e) => e.overallStatus == 'submitted').length;
+  int _getReviewedCount(List<ExamModel> exams) => exams.where((e) => e.overallStatus == 'reviewed').length;
+  int _getPublishedCount(List<ExamModel> exams) => exams.where((e) => e.overallStatus == 'published').length;
 
   @override
   Widget build(BuildContext context) {
@@ -157,13 +156,11 @@ class _ExamsScreenState extends State<ExamsScreen> {
             setState(() => _isLoading = false);
             _refreshController.refreshCompleted();
           }
-          if (next.exams.exams != previous?.exams.exams) {
-            setState(() => _exams = next.exams.exams);
-          }
         },
         builder: (context, state) {
+          final allExams = state.exams.exams;
           // Apply client-side filters
-          final filteredExams = _exams.where((exam) {
+          final filteredExams = allExams.where((exam) {
             if (_filterStatus != 'all' && exam.overallStatus != _filterStatus) return false;
             if (_filterType != 'all' && exam.examType != _filterType) return false;
             return true;
@@ -241,22 +238,22 @@ class _ExamsScreenState extends State<ExamsScreen> {
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    _buildStatCard('Total', _exams.length.toString(), Colors.blue),
+                    _buildStatCard('Total', allExams.length.toString(), Colors.blue),
                     const SizedBox(width: 8),
-                    _buildStatCard('Draft', _getDraftCount().toString(), Colors.grey),
+                    _buildStatCard('Draft', _getDraftCount(allExams).toString(), Colors.grey),
                     const SizedBox(width: 8),
-                    _buildStatCard('Submitted', _getSubmittedCount().toString(), Colors.orange),
+                    _buildStatCard('Submitted', _getSubmittedCount(allExams).toString(), Colors.orange),
                     const SizedBox(width: 8),
-                    _buildStatCard('Reviewed', _getReviewedCount().toString(), Colors.blue),
+                    _buildStatCard('Reviewed', _getReviewedCount(allExams).toString(), Colors.blue),
                     const SizedBox(width: 8),
-                    _buildStatCard('Published', _getPublishedCount().toString(), Colors.green),
+                    _buildStatCard('Published', _getPublishedCount(allExams).toString(), Colors.green),
                   ],
                 ),
               ),
               
               // Exam List
               Expanded(
-                child: state.exams.isLoading && _exams.isEmpty
+                child: state.exams.isLoading && allExams.isEmpty
                     ? const LoadingWidget()
                     : filteredExams.isEmpty
                         ? Center(
@@ -268,11 +265,6 @@ class _ExamsScreenState extends State<ExamsScreen> {
                                 Text(
                                   'No exams found',
                                   style: TextStyle(color: Colors.grey[600]),
-                                ),
-                                const SizedBox(height: 8),
-                                TextButton(
-                                  onPressed: () => Navigator.pushNamed(context, '/exams/add'),
-                                  child: const Text('Create your first exam →'),
                                 ),
                               ],
                             ),
@@ -293,11 +285,6 @@ class _ExamsScreenState extends State<ExamsScreen> {
             ],
           );
         },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.pushNamed(context, '/exams/add'),
-        backgroundColor: AppTheme.primaryColor,
-        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }

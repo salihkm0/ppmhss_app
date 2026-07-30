@@ -80,6 +80,7 @@ class ApiService {
           await _prefs?.remove('refreshToken');
           _socketService.disconnect();
           _store?.dispatch(LogoutSuccessAction());
+          navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
         } else if (error.response?.statusCode == 503) {
           // Maintenance Mode
           navigatorKey.currentState?.pushNamedAndRemoveUntil('/maintenance', (route) => false);

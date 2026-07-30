@@ -121,6 +121,68 @@ class _MyChildrenPageState extends State<MyChildrenPage> {
     }
   }
 
+  void _confirmRemoveStudent(StudentChild child) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Student'),
+        content: Text('Are you sure you want to remove ${child.fullName} from your connected children?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _removeStudent(child.studentCode);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _removeStudent(String studentCode) async {
+    if (_parentId == null) return;
+    
+    final store = StoreProvider.of<AppState>(context, listen: false);
+    
+    // Show loading indicator
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+    
+    try {
+      await store.dispatch(removeStudentConnectionThunk(
+        parentId: _parentId!,
+        studentCode: studentCode,
+      ));
+      
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Student removed successfully'), backgroundColor: Colors.green),
+        );
+        await _loadChildren();
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to remove student: ${e.toString().replaceFirst('Exception: ', '')}'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return StoreConnector<AppState, _MyChildrenViewModel>(
@@ -345,6 +407,26 @@ class _MyChildrenPageState extends State<MyChildrenPage> {
                       ),
                     ],
                   ),
+                ),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert, color: Colors.grey),
+                  onSelected: (value) {
+                    if (value == 'remove') {
+                      _confirmRemoveStudent(child);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'remove',
+                      child: Row(
+                        children: [
+                          Icon(Icons.person_remove_outlined, color: Colors.red, size: 20),
+                          SizedBox(width: 8),
+                          Text('Remove Student', style: TextStyle(color: Colors.red)),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -572,7 +654,7 @@ class _MyChildrenPageState extends State<MyChildrenPage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Enter your child\'s student code and date of birth to connect.',
+                        'Enter your child\'s register no and date of birth to connect.',
                         style: TextStyle(fontSize: 13, color: AppTheme.primaryColor),
                       ),
                     ),
@@ -582,15 +664,15 @@ class _MyChildrenPageState extends State<MyChildrenPage> {
               const SizedBox(height: 24),
               TextFormField(
                 decoration: InputDecoration(
-                  labelText: 'Student Code *',
-                  hintText: 'Enter student code',
+                  labelText: 'Register No *',
+                  hintText: 'Enter register no',
                   prefixIcon: const Icon(Icons.code),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
                 onChanged: (value) => _connectForm['studentCode'] = value,
-                validator: (value) => value == null || value.isEmpty ? 'Student code is required' : null,
+                validator: (value) => value == null || value.isEmpty ? 'Register no is required' : null,
               ),
               const SizedBox(height: 16),
               TextFormField(

@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:school_management/screens/settings/privacy_policy_screen.dart';
 import 'package:school_management/screens/settings/terms_and_conditions_screen.dart';
+import 'package:school_management/services/biometric_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -22,6 +23,9 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   String _selectedTab = 'preferences';
   PackageInfo? _packageInfo;
+  
+  bool? _localNotificationsEnabled;
+  bool? _localBiometricEnabled;
 
   @override
   void initState() {
@@ -141,8 +145,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context, state) {
         final user = state.auth.user;
         final preferences = user?.preferences ?? {};
-        final bool notificationsEnabled = preferences['notificationsEnabled'] ?? true;
-        final bool biometricEnabled = preferences['biometricEnabled'] ?? false;
+        final bool notificationsEnabled = _localNotificationsEnabled ?? preferences['notificationsEnabled'] ?? true;
+        final bool biometricEnabled = _localBiometricEnabled ?? preferences['biometricEnabled'] ?? false;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -167,6 +171,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Enable Notifications',
                     value: notificationsEnabled,
                     onChanged: (val) async {
+                      setState(() => _localNotificationsEnabled = val);
                       try {
                         await AuthService().updateProfile({
                           'preferences': {'notificationsEnabled': val},
@@ -175,6 +180,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           StoreProvider.of<AppState>(context).dispatch(getMeThunk(GetMeAction()));
                         }
                       } catch (e) {
+                        setState(() => _localNotificationsEnabled = !val);
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update: $e')));
                         }
@@ -187,16 +193,67 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Enable Biometric Login',
                     value: biometricEnabled,
                     onChanged: (val) async {
-                      try {
-                        await AuthService().updateProfile({
-                          'preferences': {'biometricEnabled': val},
-                        });
-                        if (context.mounted) {
-                          StoreProvider.of<AppState>(context).dispatch(getMeThunk(GetMeAction()));
+                      if (val) {
+                        final pwdController = TextEditingController();
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Enable Biometric Login'),
+                            content: TextField(
+                              controller: pwdController,
+                              obscureText: true,
+                              decoration: const InputDecoration(hintText: 'Enter your password'),
+                            ),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                              ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Enable')),
+                            ],
+                          ),
+                        );
+                        if (confirmed != true || pwdController.text.isEmpty) return;
+
+                        setState(() => _localBiometricEnabled = true);
+                        try {
+                          // Verify password first
+                          try {
+                            await AuthService().login(
+                              email: user?.email,
+                              phone: user?.phone,
+                              password: pwdController.text,
+                            );
+                          } catch (authError) {
+                            throw Exception('Incorrect password');
+                          }
+
+                          await BiometricService.enableBiometrics();
+                          await BiometricService.saveCredentials(user?.email ?? user?.phone ?? '', pwdController.text);
+                          await AuthService().updateProfile({
+                            'preferences': {'biometricEnabled': true},
+                          });
+                          if (context.mounted) {
+                            StoreProvider.of<AppState>(context).dispatch(getMeThunk(GetMeAction()));
+                          }
+                        } catch (e) {
+                          setState(() => _localBiometricEnabled = false);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to enable: ${e.toString().replaceAll('Exception: ', '')}')));
+                          }
                         }
-                      } catch (e) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to update: $e')));
+                      } else {
+                        setState(() => _localBiometricEnabled = false);
+                        try {
+                          await BiometricService.disableBiometrics();
+                          await AuthService().updateProfile({
+                            'preferences': {'biometricEnabled': false},
+                          });
+                          if (context.mounted) {
+                            StoreProvider.of<AppState>(context).dispatch(getMeThunk(GetMeAction()));
+                          }
+                        } catch (e) {
+                          setState(() => _localBiometricEnabled = true);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to disable: $e')));
+                          }
                         }
                       }
                     },

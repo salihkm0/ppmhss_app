@@ -105,6 +105,10 @@ ThunkAction<AppState> loginThunk(LoginAction action) {
         }
         final user = UserModel.fromJson(userData);
         
+        if (user.role == 'admin') {
+          throw Exception('Admins must use the web dashboard to manage the school.');
+        }
+        
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('token', token);
         if (action.rememberMe && response['refreshToken'] != null) {
@@ -214,6 +218,11 @@ ThunkAction<AppState> getMeThunk(GetMeAction action) {
     try {
       final authService = AuthService();
       final user = await authService.getMe();
+      
+      if (user.role == 'admin') {
+        throw Exception('Admins must use the web dashboard to manage the school.');
+      }
+      
       print('✅ GetMe success: ${user.name}');
       
       // Fetch global academic years

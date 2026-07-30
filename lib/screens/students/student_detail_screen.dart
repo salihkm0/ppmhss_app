@@ -120,7 +120,7 @@
 //                       ),
 //                       const SizedBox(height: 4),
 //                       Text(
-//                         'Student Code: ${student.studentCode}',
+//                         'Register No: ${student.studentCode}',
 //                         style: TextStyle(fontSize: 14, color: Colors.grey[600]),
 //                       ),
 //                     ],
@@ -352,7 +352,7 @@ class _StudentDetailScreenState extends State<StudentDetailScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Student Code: ${student.studentCode}',
+                        'Register No: ${student.studentCode}',
                         style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                       ),
                     ],

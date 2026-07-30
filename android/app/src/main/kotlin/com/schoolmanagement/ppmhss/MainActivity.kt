@@ -1,4 +1,4 @@
-package com.example.ppmhss_app
+package com.schoolmanagement.ppmhss
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

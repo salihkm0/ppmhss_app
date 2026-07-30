@@ -114,3 +114,23 @@ ThunkAction<AppState> connectStudentThunk({
     }
   };
 }
+
+ThunkAction<AppState> removeStudentConnectionThunk({
+  required String parentId,
+  required String studentCode,
+}) {
+  return (Store<AppState> store) async {
+    try {
+      final parentService = ParentService();
+      final response = await parentService.removeStudentConnection(
+        parentId: parentId,
+        studentCode: studentCode,
+      );
+      // Refresh children list after successful removal
+      await store.dispatch(fetchMyChildrenThunk());
+      return response;
+    } catch (e) {
+      rethrow;
+    }
+  };
+}

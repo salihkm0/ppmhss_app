@@ -158,7 +158,7 @@ class _StudentListScreenState extends State<StudentListScreen> {
                 child: TextField(
                   controller: _searchController,
                   decoration: InputDecoration(
-                    hintText: 'Search by name, admission no, or student code...',
+                    hintText: 'Search by name, admission no, or register no...',
                     prefixIcon: const Icon(Icons.search, size: 20),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
