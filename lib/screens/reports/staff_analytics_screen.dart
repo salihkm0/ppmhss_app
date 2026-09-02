@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_redux/flutter_redux.dart';
+import 'package:school_management/store/app_state.dart';
 import 'package:school_management/services/analytics_service.dart';
 import 'package:school_management/services/exam_service.dart';
 import 'package:school_management/services/class_service.dart';
@@ -52,25 +54,57 @@ class _StaffAnalyticsScreenState extends State<StaffAnalyticsScreen> {
     });
 
     try {
-      final examRes = await _examService.getExams(limit: 100, isStaff: true);
-      final classRes = await _classService.getClasses(limit: 100);
-
       List<ExamModel> examsList = [];
-      if (examRes['data'] != null && examRes['data'] is List) {
-        examsList = (examRes['data'] as List).map((e) => ExamModel.fromJson(e)).toList();
+      try {
+        final examRes = await _examService.getExams(limit: 100, isStaff: true);
+        if (examRes['data'] != null && examRes['data'] is List) {
+          examsList = (examRes['data'] as List).map((e) => ExamModel.fromJson(e)).toList();
+        }
+      } catch (_) {}
+
+      // Fallback to general exams list if staff exams list is empty
+      if (examsList.isEmpty) {
+        final allExamsRes = await _examService.getExams(limit: 100, isStaff: false);
+        if (allExamsRes['data'] != null && allExamsRes['data'] is List) {
+          examsList = (allExamsRes['data'] as List).map((e) => ExamModel.fromJson(e)).toList();
+        }
       }
 
       List<ClassModel> classesList = [];
+      final classRes = await _classService.getClasses(limit: 100);
       if (classRes['data'] != null && classRes['data'] is List) {
         classesList = (classRes['data'] as List).map((c) => ClassModel.fromJson(c)).toList();
       }
+
+      if (!mounted) return;
+      final store = StoreProvider.of<AppState>(context, listen: false);
+      final user = store.state.auth.user;
+      final isAdmin = user?.role == 'admin' || user?.role == 'superadmin';
+
+      if (!isAdmin) {
+        final teacherClasses = store.state.classes.teacherClasses;
+        if (teacherClasses.isNotEmpty) {
+          classesList = classesList.where((c) {
+            return teacherClasses.any((tc) => tc.id == c.id);
+          }).toList();
+        }
+      }
+
+      // Deduplicate classes by ID
+      final uniqueClassIds = <String>{};
+      classesList = classesList.where((c) => uniqueClassIds.add(c.id)).toList();
 
       setState(() {
         _exams = examsList;
         _classes = classesList;
         _loadingFilters = false;
-        if (_selectedExamId == null && _exams.isNotEmpty) {
-          _selectedExamId = _exams.first.id;
+
+        if (_selectedExamId == null || !_exams.any((e) => e.id == _selectedExamId)) {
+          _selectedExamId = _exams.isNotEmpty ? _exams.first.id : null;
+        }
+
+        if (!isAdmin && _classes.isNotEmpty && (_selectedClassId == null || !_classes.any((c) => c.id == _selectedClassId))) {
+          _selectedClassId = _classes.first.id;
         }
       });
 
