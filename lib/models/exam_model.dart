@@ -31,11 +31,26 @@ class ExamModel {
     this.createdBy,
   });
 
+  static String formatExamTitle(String? displayName, String rawName) {
+    if (displayName != null && displayName.isNotEmpty) return displayName;
+    if (rawName.isEmpty) return 'Exam';
+    if (!rawName.contains('_')) return rawName;
+    return rawName
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+        .join(' ');
+  }
+
   factory ExamModel.fromJson(Map<String, dynamic> json) {
+    final rawName = json['name']?.toString() ?? json['title']?.toString() ?? '';
+    final rawDisplayName = json['displayName']?.toString();
+    final formattedName = formatExamTitle(rawDisplayName, rawName);
+
     return ExamModel(
       id: json['_id'] ?? json['id'] ?? '',
-      name: json['name'] ?? '',
-      displayName: json['displayName'],
+      name: formattedName,
+      displayName: rawDisplayName ?? formattedName,
       examType: json['examType'] ?? 'custom',
       description: json['description'],
       academicYearId: json['academicYearId']?['_id'] ?? json['academicYearId'],

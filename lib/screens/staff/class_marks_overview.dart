@@ -269,6 +269,34 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
     return rows;
   }
 
+  String _formatExamTitle(dynamic e) {
+    if (e == null) return '';
+    if (e is Map) {
+      final displayName = e['displayName']?.toString();
+      if (displayName != null && displayName.isNotEmpty) return displayName;
+      final title = e['title']?.toString();
+      if (title != null && title.isNotEmpty && !title.contains('_')) return title;
+      final name = e['name']?.toString() ?? '';
+      if (name.isNotEmpty) {
+        if (!name.contains('_')) return name;
+        return name
+            .replaceAll('_', ' ')
+            .split(' ')
+            .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+            .join(' ');
+      }
+    }
+    final str = e.toString();
+    if (str.contains('_')) {
+      return str
+          .replaceAll('_', ' ')
+          .split(' ')
+          .map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '')
+          .join(' ');
+    }
+    return str;
+  }
+
   List<Map<String, dynamic>> get _filtered {
     final q = _search.toLowerCase();
     return _studentRows
@@ -446,7 +474,7 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
                   items: _exams
                       .map((e) => DropdownMenuItem(
                             value: e['_id'] as String?,
-                            child: Text(e['name'] ?? '',
+                            child: Text(_formatExamTitle(e),
                                 style: const TextStyle(fontSize: 13)),
                           ))
                       .toList(),
