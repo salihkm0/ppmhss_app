@@ -132,7 +132,6 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
       if (field == 'isAbsent' && value == true) {
         _marks[studentId]![subjectId]!['theoryScore'] = '0';
         _marks[studentId]![subjectId]!['practicalScore'] = '0';
-        _marks[studentId]![subjectId]!['ceMarks'] = '0';
       }
     });
   }
@@ -169,7 +168,7 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
                 'subjectId': studentSubjectId,
                 'theoryScore': isAbsent ? 0 : (double.tryParse(tStr) ?? 0),
                 'practicalScore': isAbsent ? 0 : (double.tryParse(pStr) ?? 0),
-                'ceMarks': isAbsent ? 0 : (double.tryParse(cStr) ?? 0),
+                'ceMarks': (double.tryParse(cStr) ?? 0),
                 'isAbsent': isAbsent,
               });
             }
@@ -526,9 +525,9 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
         if (hasCE) {
           cells.add(DataCell(_buildGridInput(
             value: marks['ceMarks']?.toString() ?? '',
-            enabled: hasPermission && !isAbsent,
+            enabled: hasPermission,
             onChanged: (v) => _updateMark(studentId, studentSubjectId, 'ceMarks', v),
-            isAbsent: isAbsent,
+            isAbsent: false,
           )));
         }
 

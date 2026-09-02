@@ -407,7 +407,7 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
         'isAbsent': nowAbsent,
         'theoryScore':    nowAbsent ? 0 : curr['theoryScore'],
         'practicalScore': nowAbsent ? 0 : curr['practicalScore'],
-        'ceMarks':        nowAbsent ? 0 : curr['ceMarks'],
+        'ceMarks':        curr['ceMarks'],
       };
     });
   }
@@ -984,7 +984,7 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
         int tInt = tVal is int ? tVal : int.tryParse(tVal?.toString() ?? '') ?? 0;
         int pInt = pVal is int ? pVal : int.tryParse(pVal?.toString() ?? '') ?? 0;
         int cInt = cVal is int ? cVal : int.tryParse(cVal?.toString() ?? '') ?? 0;
-        final total = isAbsent ? 0 : (tInt + pInt + cInt);
+        final total = (isAbsent ? 0 : (tInt + pInt)) + cInt;
         final maxTotal = maxTheory + maxPrac + maxCE;
         final sGrade = _gradeInfo(total, maxTotal);
 
@@ -996,9 +996,9 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
         if (hasCE) {
           cells.add(DataCell(_buildGridInput(
             fieldKey: 'ceMarks_${sid}_$key',
-            value: isAbsent ? '0' : (cVal?.toString() == '0' ? '' : (cVal?.toString() ?? '')),
-            enabled: canEdit && !isAbsent,
-            isAbsent: isAbsent,
+            value: cVal?.toString() == '0' ? '' : (cVal?.toString() ?? ''),
+            enabled: canEdit,
+            isAbsent: false,
             hasError: ceError,
             onChanged: (v) => _handleMarkChange(sid, key, 'ceMarks', v),
             onSubmitted: (v) => _handleFieldSubmitted(sid, key, 'ceMarks'),
