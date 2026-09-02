@@ -990,22 +990,20 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Icon(statusIcon, color: statusColor, size: 18),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Status: $statusText',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: statusColor),
-                  ),
-                ],
+              Icon(statusIcon, color: statusColor, size: 18),
+              const SizedBox(width: 6),
+              Text(
+                'Status: $statusText',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: statusColor),
               ),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
                   if (_hasEditPermission)
                     OutlinedButton.icon(
                       onPressed: _isSaving || _hasValidationErrors ? null : _handleSave,
@@ -1082,10 +1080,8 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
                   ],
                 ],
               ),
-            ],
-          ),
           if (infoMsg.isNotEmpty) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               infoMsg,
               style: TextStyle(fontSize: 11, color: statusColor.withOpacity(0.9), fontWeight: FontWeight.w500),
