@@ -489,7 +489,9 @@ class _QuickActionsRow extends StatelessWidget {
       _QA('Attendance', Icons.fact_check_outlined, _C.accent,  _C.accentSoft, onAttendance),
       _QA('Marks',      Icons.edit_outlined,        _C.blue,   _C.blueSoft,   onMarks),
       _QA('Exams',      Icons.assignment_outlined,  _C.amber,  _C.amberSoft,  onExams),
-      _QA('Duties',     Icons.work_outline,         Color(0xFF8B5CF6), Color(0xFFF5F3FF), onDuties),
+      _QA('Analytics',  Icons.analytics_outlined,   const Color(0xFFEC4899), const Color(0xFFFCE7F3), () {
+        Navigator.of(context).pushNamed('/staff/analytics');
+      }),
     ];
 
     return Row(

@@ -60,6 +60,7 @@ import 'package:school_management/screens/staff/my_duties_page.dart';
 import 'package:school_management/screens/staff/staff_attendance_page.dart';
 import 'package:school_management/screens/staff/staff_exams_page.dart';
 import 'package:school_management/screens/staff/staff_marks_entry.dart';
+import 'package:school_management/screens/reports/staff_analytics_screen.dart';
 
 // Maintenance
 import 'package:school_management/screens/maintenance_screen.dart';
@@ -473,6 +474,16 @@ class _SchoolAppState extends State<SchoolApp> {
           builder: (_) => const StaffMarksEntryPage(
             classId: '',
             className: '',
+          ),
+          settings: settings,
+        );
+
+      case '/staff/analytics':
+        final args = settings.arguments as Map<String, String>?;
+        return MaterialPageRoute(
+          builder: (_) => StaffAnalyticsScreen(
+            initialExamId: args?['examId'],
+            initialClassId: args?['classId'],
           ),
           settings: settings,
         );

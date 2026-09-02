@@ -1,6 +1,3 @@
-import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
-
 class ApiConfig {
   static String get baseUrl {
     return 'https://manage.ppmhsskottukkara.com/api';
@@ -74,4 +71,7 @@ class ApiConfig {
 
   // Config
   static const String appVersion = '/app-config/version';
+
+  // Analytics
+  static const String analyticsGradeAnalysis = '/analytics/grade-analysis';
 }
