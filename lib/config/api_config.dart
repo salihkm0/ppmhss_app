@@ -59,6 +59,7 @@ class ApiConfig {
   static const String marksBulk = '/marks/bulk';
   static const String marksSubmit = '/marks/submit';
   static const String marksReview = '/marks/review';
+  static const String marksPublish = '/marks/publish';
   static const String marksPermissions = '/marks/permissions';
   
   // Academic Years endpoints

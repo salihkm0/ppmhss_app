@@ -58,6 +58,16 @@ class _MarkService {
     _api.invalidateCache('/marks');
     await _api.post('/marks/submit', data: {'examId': examId, 'classId': classId});
   }
+
+  Future<void> reviewMarks({required String examId, required String classId, String action = 'approve'}) async {
+    _api.invalidateCache('/marks');
+    await _api.post('/marks/review', data: {'examId': examId, 'classId': classId, 'action': action});
+  }
+
+  Future<void> publishMarks({required String examId, required String classId}) async {
+    _api.invalidateCache('/marks');
+    await _api.post('/marks/publish', data: {'examId': examId, 'classId': classId});
+  }
 }
 
 // ── Main Widget ──────────────────────────────────────────────────
@@ -299,16 +309,33 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
   // Permissions
   // ────────────────────────────────────────────────────────────────
 
+  String get _classStatus => _permissions?['classStatus']?.toString() ?? 'draft';
+
   bool get _isAdmin => _permissions?['isAdmin'] == true;
   bool get _isClassTeacher => _permissions?['isClassTeacher'] == true;
-  bool get _canSubmit => _permissions?['canSubmit'] == true;
+  bool get _canSubmit =>
+      (_permissions?['canSubmit'] == true || _isClassTeacher || _isAdmin) &&
+      _classStatus == 'draft';
+  bool get _canReview => _isAdmin && _classStatus == 'submitted';
+  bool get _canPublish =>
+      _isAdmin && (_classStatus == 'submitted' || _classStatus == 'reviewed');
+
   bool get _hasEditPermission =>
-      _isAdmin ||
-      (_permissions?['allowedSubjects'] != null &&
-          (_permissions!['allowedSubjects'] as List).isNotEmpty);
+      (_isAdmin ||
+          (_permissions?['allowedSubjects'] != null &&
+              (_permissions!['allowedSubjects'] as List).isNotEmpty)) &&
+      _classStatus != 'published' &&
+      !(_classStatus != 'draft' && !_isAdmin);
 
   bool _canEditSubject(String examSubjectId) {
     if (_permissions == null) return false;
+    final status = _classStatus;
+
+    if (status == 'published') return false;
+    if (status == 'submitted' || status == 'reviewed') {
+      if (!_isAdmin) return false;
+    }
+
     if (_isAdmin) return true;
     final allowed = (_permissions!['allowedSubjects'] as List? ?? []);
     return allowed.any((s) =>
@@ -600,6 +627,84 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
     }
   }
 
+  Future<void> _handleReviewMarks() async {
+    final examId = _selectedExamId;
+    if (examId == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Review & Approve Marks?'),
+        content: const Text('Mark entries will be marked as reviewed and approved by admin. Proceed?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2563EB),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Approve'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    if (mounted) setState(() => _isSaving = true);
+    try {
+      await _markService.reviewMarks(examId: examId, classId: widget.classId, action: 'approve');
+      if (mounted) setState(() => _isSaving = false);
+      _showSnack('Marks reviewed and approved successfully');
+      await _loadData();
+    } catch (e) {
+      if (mounted) setState(() => _isSaving = false);
+      _showSnack('Failed to review marks: $e', isError: true);
+    }
+  }
+
+  Future<void> _handlePublishMarks() async {
+    final examId = _selectedExamId;
+    if (examId == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Publish Exam Results?'),
+        content: const Text('Marks will be published to students and parents. This action cannot be undone easily. Publish now?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Publish'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    if (mounted) setState(() => _isSaving = true);
+    try {
+      await _markService.publishMarks(examId: examId, classId: widget.classId);
+      if (mounted) setState(() => _isSaving = false);
+      _showSnack('Marks published successfully!');
+      await _loadData();
+    } catch (e) {
+      if (mounted) setState(() => _isSaving = false);
+      _showSnack('Failed to publish marks: $e', isError: true);
+    }
+  }
+
   // ────────────────────────────────────────────────────────────────
   // Helpers
   // ────────────────────────────────────────────────────────────────
@@ -739,6 +844,8 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
   Widget _buildBody() {
     return Column(children: [
       _buildExamSelector(),
+      if (_selectedExamId != null)
+        _buildWorkflowStatusCard(),
       if (_selectedExamId != null && _subjectProgress.isNotEmpty)
         _buildSubjectProgress(),
       if (_selectedExamId != null && _examSubjects.isNotEmpty)
@@ -791,6 +898,131 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
           },
         ),
       ]),
+    );
+  }
+
+  // ── Workflow Status Card ──────────────────────────────────────────
+  Widget _buildWorkflowStatusCard() {
+    final status = _classStatus;
+    Color statusColor;
+    String statusText;
+    IconData statusIcon;
+    String infoMsg = '';
+
+    switch (status) {
+      case 'submitted':
+        statusColor = const Color(0xFFD97706);
+        statusText = 'Submitted for Review';
+        statusIcon = Icons.hourglass_top_rounded;
+        if (!_isAdmin) {
+          infoMsg = 'Marks submitted for admin review and locked for editing by staff.';
+        } else {
+          infoMsg = 'Staff submitted marks for review. As Admin, you can review, edit, or publish.';
+        }
+        break;
+      case 'reviewed':
+        statusColor = const Color(0xFF2563EB);
+        statusText = 'Reviewed & Approved';
+        statusIcon = Icons.verified_rounded;
+        if (!_isAdmin) {
+          infoMsg = 'Marks reviewed and approved by Admin.';
+        } else {
+          infoMsg = 'Marks approved. Ready to publish results.';
+        }
+        break;
+      case 'published':
+        statusColor = const Color(0xFF059669);
+        statusText = 'Published';
+        statusIcon = Icons.workspace_premium_rounded;
+        infoMsg = 'Marks are published. Further editing is locked.';
+        break;
+      case 'draft':
+      default:
+        statusColor = const Color(0xFF64748B);
+        statusText = 'Draft';
+        statusIcon = Icons.edit_note_rounded;
+        infoMsg = _canSubmit
+            ? 'Enter marks and click "Submit for Review" when ready.'
+            : 'Enter marks for allowed subjects.';
+        break;
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: statusColor.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: statusColor.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(statusIcon, color: statusColor, size: 18),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Status: $statusText',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: statusColor),
+                  ),
+                ],
+              ),
+              Wrap(
+                spacing: 6,
+                children: [
+                  if (_canSubmit)
+                    ElevatedButton.icon(
+                      onPressed: _isSaving ? null : _handleSubmitForReview,
+                      icon: const Icon(Icons.send_rounded, size: 14),
+                      label: const Text('Submit', style: TextStyle(fontSize: 12)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFD97706),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  if (_canReview)
+                    ElevatedButton.icon(
+                      onPressed: _isSaving ? null : _handleReviewMarks,
+                      icon: const Icon(Icons.check_circle_rounded, size: 14),
+                      label: const Text('Approve', style: TextStyle(fontSize: 12)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2563EB),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  if (_canPublish)
+                    ElevatedButton.icon(
+                      onPressed: _isSaving ? null : _handlePublishMarks,
+                      icon: const Icon(Icons.publish_rounded, size: 14),
+                      label: const Text('Publish', style: TextStyle(fontSize: 12)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          if (infoMsg.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              infoMsg,
+              style: TextStyle(fontSize: 11, color: statusColor.withOpacity(0.9), fontWeight: FontWeight.w500),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

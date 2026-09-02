@@ -116,4 +116,40 @@ class ExamService {
         ? response.data as Map<String, dynamic>
         : {'data': response.data};
   }
+
+  /// Review marks (Admin review / approve)
+  Future<Map<String, dynamic>> reviewMarks({
+    required String examId,
+    required String classId,
+    String action = 'approve',
+  }) async {
+    final response = await _api.post(
+      ApiConfig.marksReview,
+      data: {
+        'examId': examId,
+        'classId': classId,
+        'action': action,
+      },
+    );
+    return response.data is Map<String, dynamic>
+        ? response.data as Map<String, dynamic>
+        : {'data': response.data};
+  }
+
+  /// Publish marks / results (Admin only)
+  Future<Map<String, dynamic>> publishMarks({
+    required String examId,
+    required String classId,
+  }) async {
+    final response = await _api.post(
+      ApiConfig.marksPublish,
+      data: {
+        'examId': examId,
+        'classId': classId,
+      },
+    );
+    return response.data is Map<String, dynamic>
+        ? response.data as Map<String, dynamic>
+        : {'data': response.data};
+  }
 }
