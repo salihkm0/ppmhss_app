@@ -51,22 +51,7 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
         elevation: 0,
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => StaffExamFormPage(
-                    classId: widget.classId,
-                    className: widget.className,
-                  ),
-                ),
-              );
-            },
-          ),
-        ],
+        actions: const [],
       ),
       body: StoreConnector<AppState, _ExamViewModel>(
         converter: (store) {
