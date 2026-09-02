@@ -1,5 +1,12 @@
 // lib/screens/staff/class_marks_overview.dart
 // Class teacher / admin view: see all student marks per exam for a class
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:school_management/config/api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_redux/flutter_redux.dart';
 import 'package:school_management/services/api_service.dart';
@@ -297,6 +304,55 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
     return str;
   }
 
+  bool _isDownloading = false;
+
+  Future<void> _downloadClassMarks({required bool isExcel}) async {
+    final classId = _selectedClassId;
+    final examId = _selectedExamId;
+    if (classId == null || examId == null) return;
+
+    if (mounted) setState(() => _isDownloading = true);
+    try {
+      final token = ApiService().getToken();
+      final endpoint = isExcel
+          ? '/pdf/report-card/class-marks/excel/$classId/$examId'
+          : '/pdf/report-card/class-marks/download/$classId/$examId';
+
+      final response = await Dio().get<List<int>>(
+        '${ApiConfig.baseUrl}$endpoint',
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {'Authorization': 'Bearer $token'},
+        ),
+      );
+
+      if (response.data == null || response.data!.isEmpty) {
+        throw 'Empty file response received';
+      }
+
+      final bytes = Uint8List.fromList(response.data!);
+      final ext = isExcel ? 'xlsx' : 'pdf';
+      final fileName = 'Class_Marks_${classId}_$examId.$ext';
+
+      if (isExcel) {
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/$fileName');
+        await file.writeAsBytes(bytes);
+        await Share.shareXFiles([XFile(file.path)], text: 'Class Marks Overview Excel');
+      } else {
+        await Printing.sharePdf(bytes: bytes, filename: fileName);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to download: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isDownloading = false);
+    }
+  }
+
   List<Map<String, dynamic>> get _filtered {
     final q = _search.toLowerCase();
     return _studentRows
@@ -422,6 +478,7 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
                         return Column(
                           children: [
                             _buildSummaryRow(),
+                            _buildExportBar(),
                             _buildSearchBar(),
                             Expanded(child: _isCardView ? _buildCardView() : _buildTableView()),
                           ],
@@ -581,6 +638,46 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
           const SizedBox(width: 8),
           _statChip('Subjects Done', '$completedSubjects/${_subjects.length}',
               Colors.amber.shade700),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExportBar() {
+    return Container(
+      color: _C.surface,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          OutlinedButton.icon(
+            onPressed: _isDownloading ? null : () => _downloadClassMarks(isExcel: false),
+            icon: const Icon(Icons.picture_as_pdf_rounded, size: 16, color: Colors.redAccent),
+            label: Text(
+              _isDownloading ? 'Downloading…' : 'Download PDF',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent),
+            ),
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Colors.redAccent),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton.icon(
+            onPressed: _isDownloading ? null : () => _downloadClassMarks(isExcel: true),
+            icon: const Icon(Icons.table_chart_rounded, size: 16),
+            label: Text(
+              _isDownloading ? 'Exporting…' : 'Export Excel (XLS)',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF059669),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
         ],
       ),
     );

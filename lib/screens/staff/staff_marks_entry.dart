@@ -4,6 +4,13 @@
 //   GET  /marks/permissions/{examId}/{classId} → permissions
 //   POST /marks/bulk/{examId}/{classId}        → { studentsData }
 
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:school_management/config/api_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:school_management/services/api_service.dart';
@@ -708,6 +715,50 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
     }
   }
 
+  bool _isDownloading = false;
+
+  Future<void> _downloadClassMarks({required bool isExcel}) async {
+    final examId = _selectedExamId;
+    if (examId == null) return;
+
+    if (mounted) setState(() => _isDownloading = true);
+    try {
+      final token = ApiService().getToken();
+      final endpoint = isExcel
+          ? '/pdf/report-card/class-marks/excel/${widget.classId}/$examId'
+          : '/pdf/report-card/class-marks/download/${widget.classId}/$examId';
+
+      final response = await Dio().get<List<int>>(
+        '${ApiConfig.baseUrl}$endpoint',
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {'Authorization': 'Bearer $token'},
+        ),
+      );
+
+      if (response.data == null || response.data!.isEmpty) {
+        throw 'Empty file response received';
+      }
+
+      final bytes = Uint8List.fromList(response.data!);
+      final ext = isExcel ? 'xlsx' : 'pdf';
+      final fileName = 'Class_Marks_${widget.className.replaceAll(' ', '_')}_$examId.$ext';
+
+      if (isExcel) {
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/$fileName');
+        await file.writeAsBytes(bytes);
+        await Share.shareXFiles([XFile(file.path)], text: 'Class Marks Overview Excel');
+      } else {
+        await Printing.sharePdf(bytes: bytes, filename: fileName);
+      }
+    } catch (e) {
+      _showSnack('Failed to download file: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isDownloading = false);
+    }
+  }
+
   // ────────────────────────────────────────────────────────────────
   // Helpers
   // ────────────────────────────────────────────────────────────────
@@ -1006,6 +1057,29 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
                         visualDensity: VisualDensity.compact,
                       ),
                     ),
+                  if (_classStatus != 'draft' || (_subjectProgress.isNotEmpty && _subjectProgress.every((s) => (s['percentage'] as num? ?? 0) == 100))) ...[
+                    OutlinedButton.icon(
+                      onPressed: _isDownloading ? null : () => _downloadClassMarks(isExcel: false),
+                      icon: const Icon(Icons.picture_as_pdf_rounded, size: 14, color: Colors.redAccent),
+                      label: const Text('PDF', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.redAccent),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: _isDownloading ? null : () => _downloadClassMarks(isExcel: true),
+                      icon: const Icon(Icons.table_chart_rounded, size: 14),
+                      label: const Text('Excel (XLS)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF059669),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ],
