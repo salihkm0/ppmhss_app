@@ -313,9 +313,7 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
 
   bool get _isAdmin => _permissions?['isAdmin'] == true;
   bool get _isClassTeacher => _permissions?['isClassTeacher'] == true;
-  bool get _canSubmit =>
-      (_permissions?['canSubmit'] == true || _isClassTeacher || _isAdmin) &&
-      _classStatus == 'draft';
+  bool get _canSubmit => _classStatus == 'draft';
   bool get _canReview => _isAdmin && _classStatus == 'submitted';
   bool get _canPublish =>
       _isAdmin && (_classStatus == 'submitted' || _classStatus == 'reviewed');
@@ -584,16 +582,21 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
     final examId = _selectedExamId;
     if (examId == null) return;
 
-    if (_dirtyStudents.isNotEmpty) {
-      _showSnack('Please save your changes first', isError: true);
+    if (_hasValidationErrors) {
+      _showSnack('Please fix invalid mark entries before submitting', isError: true);
       return;
+    }
+
+    if (_dirtyStudents.isNotEmpty) {
+      await _handleSave();
+      if (!mounted) return;
     }
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Submit for Review?'),
-        content: const Text('Marks will be submitted for review and locked for editing. Are you sure?'),
+        content: const Text('Marks will be submitted for admin review and locked for editing by staff. Are you sure?'),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         actions: [
           TextButton(
@@ -806,14 +809,14 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
       actions: [
         if (_hasEditPermission && _selectedExamId != null && _examSubjects.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.only(right: 4),
             child: TextButton.icon(
               onPressed: _isSaving || _hasValidationErrors ? null : _handleSave,
-              icon: Icon(Icons.check_rounded, color: _isSaving || _hasValidationErrors ? Colors.white54 : Colors.white, size: 18),
-              label: Text(_dirtyStudents.isNotEmpty
-                  ? 'Save (${_dirtyStudents.length})'
-                  : 'Save All',
-                  style: TextStyle(color: _isSaving || _hasValidationErrors ? Colors.white54 : Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+              icon: Icon(Icons.save_outlined, color: _isSaving || _hasValidationErrors ? Colors.white54 : Colors.white, size: 16),
+              label: Text(
+                _dirtyStudents.isNotEmpty ? 'Save Draft (${_dirtyStudents.length})' : 'Save Draft',
+                style: TextStyle(color: _isSaving || _hasValidationErrors ? Colors.white54 : Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
             ),
           ),
         if (_canSubmit && _selectedExamId != null && _examSubjects.isNotEmpty)
@@ -821,9 +824,11 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
             padding: const EdgeInsets.only(right: 8),
             child: TextButton.icon(
               onPressed: _isSaving ? null : _handleSubmitForReview,
-              icon: Icon(Icons.send_rounded, color: _isSaving ? Colors.white54 : Colors.amber[300], size: 18),
-              label: Text('Submit for Review',
-                  style: TextStyle(color: _isSaving ? Colors.white54 : Colors.amber[300], fontSize: 13, fontWeight: FontWeight.w600)),
+              icon: Icon(Icons.send_rounded, color: _isSaving ? Colors.white54 : const Color(0xFFFDE68A), size: 16),
+              label: Text(
+                'Submit',
+                style: TextStyle(color: _isSaving ? Colors.white54 : const Color(0xFFFDE68A), fontSize: 12, fontWeight: FontWeight.bold),
+              ),
             ),
           ),
       ],
@@ -973,12 +978,28 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
               ),
               Wrap(
                 spacing: 6,
+                runSpacing: 6,
                 children: [
+                  if (_hasEditPermission)
+                    OutlinedButton.icon(
+                      onPressed: _isSaving || _hasValidationErrors ? null : _handleSave,
+                      icon: const Icon(Icons.save_outlined, size: 14),
+                      label: Text(
+                        _dirtyStudents.isNotEmpty ? 'Save Draft (${_dirtyStudents.length})' : 'Save Draft',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: statusColor,
+                        side: BorderSide(color: statusColor.withOpacity(0.5)),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
                   if (_canSubmit)
                     ElevatedButton.icon(
                       onPressed: _isSaving ? null : _handleSubmitForReview,
                       icon: const Icon(Icons.send_rounded, size: 14),
-                      label: const Text('Submit', style: TextStyle(fontSize: 12)),
+                      label: const Text('Submit for Review', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFD97706),
                         foregroundColor: Colors.white,
