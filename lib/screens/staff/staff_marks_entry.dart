@@ -806,32 +806,7 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
         const Text('Marks Entry', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
         Text(widget.className, style: const TextStyle(fontSize: 12, color: Colors.white70, fontWeight: FontWeight.w400)),
       ]),
-      actions: [
-        if (_hasEditPermission && _selectedExamId != null && _examSubjects.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(right: 4),
-            child: TextButton.icon(
-              onPressed: _isSaving || _hasValidationErrors ? null : _handleSave,
-              icon: Icon(Icons.save_outlined, color: _isSaving || _hasValidationErrors ? Colors.white54 : Colors.white, size: 16),
-              label: Text(
-                _dirtyStudents.isNotEmpty ? 'Save Draft (${_dirtyStudents.length})' : 'Save Draft',
-                style: TextStyle(color: _isSaving || _hasValidationErrors ? Colors.white54 : Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-        if (_canSubmit && _selectedExamId != null && _examSubjects.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: TextButton.icon(
-              onPressed: _isSaving ? null : _handleSubmitForReview,
-              icon: Icon(Icons.send_rounded, color: _isSaving ? Colors.white54 : const Color(0xFFFDE68A), size: 16),
-              label: Text(
-                'Submit',
-                style: TextStyle(color: _isSaving ? Colors.white54 : const Color(0xFFFDE68A), fontSize: 12, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-      ],
+      actions: const [],
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
           decoration: BoxDecoration(
