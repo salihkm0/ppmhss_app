@@ -293,7 +293,7 @@ class _StaffAnalyticsScreenState extends State<StaffAnalyticsScreen> {
                 value: null,
                 child: Text('All Classes', style: TextStyle(fontSize: 13, color: Colors.grey)),
               ),
-              ..._classes.map((cls) {
+              ...{for (var c in _classes) c.id: c}.values.map((cls) {
                 return DropdownMenuItem<String>(
                   value: cls.id,
                   child: Text(

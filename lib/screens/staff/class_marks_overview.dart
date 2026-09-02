@@ -578,6 +578,24 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
     required List<DropdownMenuItem<String?>> items,
     required ValueChanged<String?> onChanged,
   }) {
+    // Deduplicate items and ensure exactly one null-value item exists
+    final cleanItems = <DropdownMenuItem<String?>>[
+      DropdownMenuItem<String?>(
+        value: null,
+        child: Text(hint, style: const TextStyle(color: _C.text3, fontSize: 13)),
+      ),
+    ];
+
+    final seenValues = <String>{};
+    for (final item in items) {
+      final val = item.value;
+      if (val != null && val.isNotEmpty && seenValues.add(val)) {
+        cleanItems.add(item);
+      }
+    }
+
+    final String? selectedValue = (value != null && seenValues.contains(value)) ? value : null;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -594,17 +612,9 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String?>(
-              value: value,
-              hint: Text(hint,
-                  style: const TextStyle(color: _C.text3, fontSize: 13)),
+              value: selectedValue,
               isExpanded: true,
-              items: [
-                DropdownMenuItem(
-                    value: null,
-                    child: Text(hint,
-                        style: const TextStyle(color: _C.text3, fontSize: 13))),
-                ...items
-              ],
+              items: cleanItems,
               onChanged: onChanged,
             ),
           ),
