@@ -37,7 +37,7 @@ class UpdateScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isForced = updateConfig['forceUpdate'] == true;
+    final isForced = updateConfig['forceUpdate'] == true || updateConfig['updateType'] == 'force';
     final message = updateConfig['updateMessage'] ?? 'A new version of the app is available. Please update to continue.';
 
     return Scaffold(

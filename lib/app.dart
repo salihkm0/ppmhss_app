@@ -146,10 +146,16 @@ class _SchoolAppState extends State<SchoolApp> {
           return const SplashScreen();
         }
 
+        final isForced = _updateConfig != null &&
+            (_updateConfig!['forceUpdate'] == true || _updateConfig!['updateType'] == 'force');
+        final isSoft = _updateConfig != null &&
+            (_updateConfig!['softUpdate'] == true || _updateConfig!['updateType'] == 'soft') &&
+            !isForced;
+
         Widget currentHome;
-        if (_updateConfig != null && _updateConfig!['forceUpdate'] == true) {
+        if (isForced) {
           currentHome = UpdateScreen(updateConfig: _updateConfig!);
-        } else if (_updateConfig != null && _updateConfig!['softUpdate'] == true && !_skipSoftUpdate) {
+        } else if (isSoft && !_skipSoftUpdate) {
           currentHome = UpdateScreen(
             updateConfig: _updateConfig!,
             onSkip: () {
