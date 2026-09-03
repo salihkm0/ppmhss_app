@@ -265,6 +265,7 @@ class _MyClassesPageState extends State<MyClassesPage>
           isLoadingStudents: store.state.students.isLoading,
           classError: store.state.classes.error,
           user: store.state.auth.user,
+          currentStaff: store.state.staff.currentStaff,
         ),
         onWillChange: (_, next) {
           _students = next.students;
@@ -309,6 +310,8 @@ class _MyClassesPageState extends State<MyClassesPage>
                           child: _HeroClassCard(
                             classModel: _activeClass!,
                             studentCount: _students.length,
+                            user: vm.user,
+                            currentStaff: vm.currentStaff,
                           ),
                         ),
 
@@ -387,12 +390,73 @@ class _MyClassesPageState extends State<MyClassesPage>
 class _HeroClassCard extends StatelessWidget {
   final ClassModel classModel;
   final int studentCount;
-  const _HeroClassCard({required this.classModel, required this.studentCount});
+  final UserModel? user;
+  final dynamic currentStaff;
+
+  const _HeroClassCard({
+    required this.classModel,
+    required this.studentCount,
+    this.user,
+    this.currentStaff,
+  });
 
   @override
   Widget build(BuildContext context) {
     final section = classModel.section;
     final display = classModel.displayName ?? classModel.name;
+
+    // Calculate subjects taught by this staff member in this class
+    int taughtCount = 0;
+    final staffIds = <String>{};
+    if (user?.staffId != null) staffIds.add(user!.staffId.toString());
+    if (user?.id != null) staffIds.add(user!.id.toString());
+    if (currentStaff != null) {
+      final sId = (currentStaff is Map) ? (currentStaff['_id'] ?? currentStaff['id']) : (currentStaff.id ?? currentStaff['_id']);
+      if (sId != null) staffIds.add(sId.toString());
+    }
+
+    if (classModel.subjectTeachers != null && classModel.subjectTeachers!.isNotEmpty && staffIds.isNotEmpty) {
+      final teacherSubjects = <String>{};
+      for (final st in classModel.subjectTeachers!) {
+        if (st == null) continue;
+        dynamic tId;
+        if (st is Map) {
+          tId = (st['teacherId'] is Map) ? st['teacherId']['_id'] : st['teacherId'];
+        }
+        final tIdStr = tId?.toString();
+        if (tIdStr != null && staffIds.contains(tIdStr)) {
+          dynamic sId;
+          if (st is Map) {
+            sId = (st['subjectId'] is Map) ? st['subjectId']['_id'] : st['subjectId'];
+          }
+          if (sId != null) {
+            teacherSubjects.add(sId.toString());
+          }
+        }
+      }
+      if (teacherSubjects.isNotEmpty) {
+        taughtCount = teacherSubjects.length;
+      }
+    }
+
+    if (taughtCount == 0 && currentStaff != null) {
+      try {
+        final scList = (currentStaff is Map) ? currentStaff['subjectClasses'] : currentStaff.subjectClasses;
+        if (scList is List && scList.isNotEmpty) {
+          final matching = scList.where((sc) {
+            if (sc == null) return false;
+            final cId = (sc is Map) ? ((sc['classId'] is Map) ? sc['classId']['_id'] : sc['classId']) : null;
+            return cId?.toString() == classModel.id;
+          }).toList();
+          if (matching.isNotEmpty) {
+            taughtCount = matching.length;
+          }
+        }
+      } catch (_) {}
+    }
+
+    final subjectsDisplayValue = taughtCount > 0 ? '$taughtCount' : '${classModel.subjects?.length ?? 0}';
+    final subjectsLabel = taughtCount > 0 ? 'Subjects Taught' : 'Subjects';
 
     return Container(
       padding: const EdgeInsets.all(22),
@@ -483,21 +547,19 @@ class _HeroClassCard extends StatelessWidget {
                     value: '$studentCount',
                     label: 'Students',
                   ),
-                  const SizedBox(width: 28),
+                  const SizedBox(width: 24),
                   if (classModel.capacity != null)
                     _HeroStat(
                       icon: Icons.event_seat_rounded,
                       value: '${classModel.capacity}',
                       label: 'Capacity',
                     ),
-                  if (classModel.subjects?.isNotEmpty ?? false) ...[
-                    const SizedBox(width: 28),
-                    _HeroStat(
-                      icon: Icons.book_rounded,
-                      value: '${classModel.subjects!.length}',
-                      label: 'Subjects',
-                    ),
-                  ],
+                  const SizedBox(width: 24),
+                  _HeroStat(
+                    icon: Icons.book_rounded,
+                    value: subjectsDisplayValue,
+                    label: subjectsLabel,
+                  ),
                 ],
               ),
             ],
@@ -1494,6 +1556,7 @@ class _VM {
   final bool isLoadingStudents;
   final String? classError;
   final UserModel? user;
+  final dynamic currentStaff;
 
   const _VM({
     required this.classes,
@@ -1502,5 +1565,6 @@ class _VM {
     required this.isLoadingStudents,
     this.classError,
     this.user,
+    this.currentStaff,
   });
 }
