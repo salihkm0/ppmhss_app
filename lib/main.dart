@@ -15,6 +15,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:school_management/widgets/common/version_check_wrapper.dart';
 
+import 'package:school_management/screens/login_screen.dart';
+import 'package:school_management/screens/parent_registration_screen.dart';
+import 'package:school_management/screens/maintenance_screen.dart';
+
 // Global key for root navigator
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -128,6 +132,12 @@ class MyApp extends StatelessWidget {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: ThemeMode.light,
+          routes: {
+            '/login': (context) => const LoginScreen(),
+            '/register-parent': (context) => const ParentRegistrationScreen(),
+            '/maintenance': (context) => const MaintenanceScreen(),
+          },
+          onGenerateRoute: generateAppRoute,
           home: VersionCheckWrapper(
             child: SchoolApp(
               prefs: prefs,

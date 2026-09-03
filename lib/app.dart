@@ -175,35 +175,20 @@ class _SchoolAppState extends State<SchoolApp> {
           currentHome = const LoginScreen();
         }
 
-        return MaterialApp(
-          title: 'PPMHSS',
-          debugShowCheckedModeBanner: false,
-          theme: _buildTheme(),
-          navigatorKey: navigatorKey,
-          home: currentHome,
-          routes: {
-            '/login': (context) => const LoginScreen(),
-            '/register-parent': (context) => const ParentRegistrationScreen(),
-            '/maintenance': (context) => const MaintenanceScreen(),
-          },
-          onGenerateRoute: _generateRoute,
-        );
+        return currentHome;
       },
     );
   }
+}
 
-  ThemeData _buildTheme() {
-    return AppTheme.lightTheme;
-  }
-
-  Route<dynamic>? _generateRoute(RouteSettings settings) {
-    switch (settings.name) {
-      // ==================== MAINTENANCE ====================
-      case '/maintenance':
-        return MaterialPageRoute(
-          builder: (_) => const MaintenanceScreen(),
-          settings: settings,
-        );
+Route<dynamic>? generateAppRoute(RouteSettings settings) {
+  switch (settings.name) {
+    // ==================== MAINTENANCE ====================
+    case '/maintenance':
+      return MaterialPageRoute(
+        builder: (_) => const MaintenanceScreen(),
+        settings: settings,
+      );
 
       // ==================== STUDENT ROUTES ====================
       case '/students':
@@ -510,4 +495,3 @@ class _SchoolAppState extends State<SchoolApp> {
         return null;
     }
   }
-}
