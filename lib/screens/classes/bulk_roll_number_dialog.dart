@@ -139,9 +139,10 @@ class _BulkRollNumberDialogState extends State<BulkRollNumberDialog> {
             ),
             const Divider(height: 1),
             Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
               child: CustomButton(
                 text: 'Save Roll Numbers',
+                isFullWidth: true,
                 onPressed: _save,
                 isLoading: _isSaving,
               ),
