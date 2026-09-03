@@ -4,6 +4,7 @@ import 'package:school_management/actions/attendance_actions.dart';
 import 'package:school_management/store/app_state.dart';
 import 'package:school_management/widgets/common/custom_appbar.dart';
 import 'package:school_management/widgets/common/loading_widget.dart';
+import 'package:school_management/widgets/common/error_widget.dart';
 import 'package:school_management/utils/theme.dart';
 import 'package:intl/intl.dart';
 
@@ -23,7 +24,6 @@ class AttendanceDetailScreen extends StatefulWidget {
 
 class _AttendanceDetailScreenState extends State<AttendanceDetailScreen> {
   int _selectedYear = DateTime.now().year;
-  List<int> _availableYears = [];
 
   @override
   void initState() {
@@ -33,7 +33,7 @@ class _AttendanceDetailScreenState extends State<AttendanceDetailScreen> {
 
   void _loadAttendance() {
     final store = StoreProvider.of<AppState>(context, listen: false);
-    store.dispatch(FetchStudentAttendanceAction(studentId: widget.studentId));
+    store.dispatch(fetchStudentAttendanceThunk(FetchStudentAttendanceAction(studentId: widget.studentId)));
   }
 
   @override
@@ -45,31 +45,20 @@ class _AttendanceDetailScreenState extends State<AttendanceDetailScreen> {
       ),
       body: StoreConnector<AppState, AppState>(
         converter: (store) => store.state,
-        onWillChange: (previous, next) {
-          if (next.attendance.studentAttendance.isNotEmpty && _availableYears.isEmpty) {
-            final years = next.attendance.studentAttendance
-                .map((a) => a.year)
-                .toSet()
-                .toList();
-            setState(() {
-              _availableYears = years..sort((a, b) => b.compareTo(a));
-              if (years.isNotEmpty && !years.contains(_selectedYear)) {
-                _selectedYear = years.first;
-              }
-            });
-          }
-        },
         builder: (context, state) {
-          final attendanceRecords = state.attendance.studentAttendance
-              .where((a) => a.year == _selectedYear)
-              .toList()
-            ..sort((a, b) => b.month.compareTo(a.month));
-          
-          if (state.attendance.isLoading && attendanceRecords.isEmpty) {
+          if (state.attendance.isLoading) {
             return const LoadingWidget();
           }
-          
-          if (attendanceRecords.isEmpty) {
+
+          if (state.attendance.error != null && state.attendance.error!.isNotEmpty) {
+            return CustomErrorWidget(
+              message: state.attendance.error!,
+              onRetry: _loadAttendance,
+            );
+          }
+
+          final allAttendance = state.attendance.studentAttendance;
+          if (allAttendance.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -84,6 +73,14 @@ class _AttendanceDetailScreenState extends State<AttendanceDetailScreen> {
               ),
             );
           }
+
+          final availableYears = allAttendance.map((a) => a.year).toSet().toList()..sort((a, b) => b.compareTo(a));
+          final activeYear = availableYears.contains(_selectedYear) ? _selectedYear : availableYears.first;
+
+          final attendanceRecords = allAttendance
+              .where((a) => a.year == activeYear)
+              .toList()
+            ..sort((a, b) => b.month.compareTo(a.month));
           
           final totalDays = attendanceRecords.fold<int>(0, (sum, r) => sum + r.totalWorkingDays);
           final totalPresent = attendanceRecords.fold<int>(0, (sum, r) => sum + r.presentDays);
@@ -124,7 +121,7 @@ class _AttendanceDetailScreenState extends State<AttendanceDetailScreen> {
                 ),
                 const SizedBox(height: 20),
                 // Year Filter
-                if (_availableYears.length > 1)
+                if (availableYears.length > 1)
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
@@ -138,9 +135,9 @@ class _AttendanceDetailScreenState extends State<AttendanceDetailScreen> {
                         Expanded(
                           child: DropdownButtonHideUnderline(
                             child: DropdownButton<int>(
-                              value: _selectedYear,
+                              value: activeYear,
                               isExpanded: true,
-                              items: _availableYears.map((year) {
+                              items: availableYears.map((year) {
                                 return DropdownMenuItem(
                                   value: year,
                                   child: Text(year.toString()),
