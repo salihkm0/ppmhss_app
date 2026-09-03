@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_redux/flutter_redux.dart';
+import 'package:school_management/main.dart';
 import 'package:school_management/actions/auth_actions.dart';
 import 'package:school_management/screens/dashboard_screen.dart';
 import 'package:school_management/screens/login_screen.dart';
@@ -86,7 +87,6 @@ class SchoolApp extends StatefulWidget {
 }
 
 class _SchoolAppState extends State<SchoolApp> {
-  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   bool _authChecked = false;
   Map<String, dynamic>? _updateConfig;
   bool _skipSoftUpdate = false;
@@ -179,7 +179,7 @@ class _SchoolAppState extends State<SchoolApp> {
           title: 'PPMHSS',
           debugShowCheckedModeBanner: false,
           theme: _buildTheme(),
-          navigatorKey: _navigatorKey,
+          navigatorKey: navigatorKey,
           home: currentHome,
           routes: {
             '/login': (context) => const LoginScreen(),

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_redux/flutter_redux.dart';
 import 'package:school_management/services/api_service.dart';
-import 'package:school_management/store/app_state.dart';
+import 'package:school_management/services/socket_service.dart';
+import 'package:school_management/utils/theme.dart';
+import 'package:school_management/widgets/common/custom_button.dart';
 
 class MaintenanceScreen extends StatefulWidget {
   const MaintenanceScreen({super.key});
@@ -20,12 +21,29 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 3),
+      duration: const Duration(seconds: 4),
     )..repeat();
+
+    // Listen for socket event when maintenance mode is turned off
+    try {
+      SocketService().addListener('maintenance_mode_changed', _handleMaintenanceChanged);
+    } catch (_) {}
+  }
+
+  void _handleMaintenanceChanged(dynamic data) {
+    if (mounted && data is Map) {
+      final enabled = data['enabled'] == true || data['enabled'] == 'true';
+      if (!enabled) {
+        Navigator.of(context).pushReplacementNamed('/');
+      }
+    }
   }
 
   @override
   void dispose() {
+    try {
+      SocketService().removeListener('maintenance_mode_changed', _handleMaintenanceChanged);
+    } catch (_) {}
     _controller.dispose();
     super.dispose();
   }
@@ -37,15 +55,12 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
 
     try {
       final apiService = ApiService();
-      // Try to hit any lightweight endpoint or version endpoint
       await apiService.get('/system/active-users', noCache: true);
-      // If we don't get a 503, it means maintenance is over!
       if (mounted) {
         Navigator.of(context).pushReplacementNamed('/');
       }
     } catch (e) {
-      // If it throws 503, the api_service will intercept it,
-      // but we also catch it here to stop the loading indicator.
+      // 503 or error means still under maintenance
     } finally {
       if (mounted) {
         setState(() {
@@ -58,43 +73,92 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF111827), // gray-900
+      backgroundColor: const Color(0xFFF9FAFB),
       body: SafeArea(
-        child: Stack(
+        child: Column(
           children: [
-            // Top gradient line
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                height: 4,
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.red, Colors.orange, Colors.amber],
-                  ),
+            // Top Hero Card with App Theme Gradient
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 40),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF059669), Color(0xFF10B981)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(32),
+                  bottomRight: Radius.circular(32),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x26059669),
+                    blurRadius: 16,
+                    offset: Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.school_rounded,
+                      size: 40,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'PPMHSS',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'School Management Portal',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.white.withOpacity(0.85),
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
             ),
-            Center(
+
+            Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                padding: const EdgeInsets.symmetric(horizontal: 28.0),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Gear Animation
+                    // Animated Gear Icon with App Theme Palette
                     SizedBox(
-                      width: 100,
-                      height: 100,
+                      width: 110,
+                      height: 110,
                       child: Stack(
                         alignment: Alignment.center,
                         children: [
                           Container(
-                            width: 96,
-                            height: 96,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF1F2937), // gray-800
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFECFDF5),
                               shape: BoxShape.circle,
+                              border: Border.all(
+                                color: const Color(0xFFA7F3D0),
+                                width: 2,
+                              ),
                             ),
                           ),
                           AnimatedBuilder(
@@ -106,27 +170,9 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
                               );
                             },
                             child: const Icon(
-                              Icons.settings,
-                              size: 48,
-                              color: Colors.orangeAccent,
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 12,
-                            right: 12,
-                            child: AnimatedBuilder(
-                              animation: _controller,
-                              builder: (_, child) {
-                                return Transform.rotate(
-                                  angle: -_controller.value * 2 * 3.14159,
-                                  child: child,
-                                );
-                              },
-                              child: const Icon(
-                                Icons.settings,
-                                size: 24,
-                                color: Colors.orange,
-                              ),
+                              Icons.build_circle_rounded,
+                              size: 56,
+                              color: AppTheme.primaryColor,
                             ),
                           ),
                         ],
@@ -136,55 +182,44 @@ class _MaintenanceScreenState extends State<MaintenanceScreen>
                     const Text(
                       'Under Maintenance',
                       style: TextStyle(
-                        fontSize: 28,
+                        fontSize: 26,
                         fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                        color: AppTheme.textPrimaryColor,
+                        letterSpacing: -0.5,
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     const Text(
-                      'We are currently performing system upgrades or maintenance to improve your experience. Please check back later.',
+                      'We are currently performing scheduled system upgrades or maintenance to improve your experience. Please check back shortly.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         height: 1.5,
-                        color: Color(0xFF9CA3AF), // gray-400
+                        color: AppTheme.textSecondaryColor,
                       ),
                     ),
-                    const SizedBox(height: 40),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _checkStatus,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1F2937), // gray-800
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: const BorderSide(color: Color(0xFF374151)), // gray-700
-                          ),
-                          elevation: 0,
-                        ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                ),
-                              )
-                            : const Text(
-                                'Refresh Status',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                      ),
+                    const SizedBox(height: 36),
+                    CustomButton(
+                      text: 'Refresh Status',
+                      isFullWidth: true,
+                      height: 52,
+                      isLoading: _isLoading,
+                      onPressed: _checkStatus,
+                      icon: Icons.refresh_rounded,
                     ),
                   ],
+                ),
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.only(bottom: 16.0),
+              child: Text(
+                'System Status: Maintenance In Progress',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[400],
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),

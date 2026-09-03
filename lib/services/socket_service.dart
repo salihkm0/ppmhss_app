@@ -253,9 +253,15 @@ class SocketService {
 
       _socket!.on('maintenance_mode_changed', (data) {
         debugPrint('🛠️ Maintenance mode changed: $data');
-        if (data is Map && data['enabled'] == true) {
-          // Exclude administration role
-          if (_currentUserRole != 'administration') {
+        bool isEnabled = false;
+        if (data is Map) {
+          isEnabled = data['enabled'] == true || data['enabled'] == 'true';
+        } else if (data is bool) {
+          isEnabled = data;
+        }
+
+        if (isEnabled) {
+          if (_currentUserRole != 'administration' && _currentUserRole != 'admin') {
             navigatorKey.currentState?.pushNamedAndRemoveUntil('/maintenance', (route) => false);
           }
         }
