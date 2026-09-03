@@ -55,8 +55,20 @@ class AttendanceService {
   Future<List<AttendanceModel>> getStudentAttendance(String studentId, {String? academicYearId}) async {
     final params = academicYearId != null ? {'academicYearId': academicYearId} : null;
     final response = await _api.get('${ApiConfig.attendance}/student/$studentId', params: params);
-    final List data = response.data['data'] ?? response.data;
-    return data.map((json) => AttendanceModel.fromJson(json)).toList();
+    
+    final rawData = response.data;
+    List data;
+    if (rawData is List) {
+      data = rawData;
+    } else if (rawData is Map && rawData['data'] is List) {
+      data = rawData['data'] as List;
+    } else if (rawData is Map && rawData['records'] is List) {
+      data = rawData['records'] as List;
+    } else {
+      data = [];
+    }
+
+    return data.map((json) => AttendanceModel.fromJson(json as Map<String, dynamic>)).toList();
   }
 
   // ==================== TEMPLATE METHODS ====================
