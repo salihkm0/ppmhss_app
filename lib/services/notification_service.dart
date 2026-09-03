@@ -31,4 +31,26 @@ class NotificationService {
   Future<void> sendNotification(Map<String, dynamic> data) async {
     await _api.post(ApiConfig.notifications, data: data);
   }
+
+  Future<void> sendToClass(String classId, Map<String, dynamic> data) async {
+    await _api.post('${ApiConfig.notifications}/class/$classId', data: data);
+  }
+
+  Future<void> sendToUser(String userId, Map<String, dynamic> data) async {
+    await _api.post('${ApiConfig.notifications}/user/$userId', data: data);
+  }
+
+  Future<List<Map<String, dynamic>>> getClassParents(String classId) async {
+    final response = await _api.get('/users/parents/class/$classId');
+    final rawData = response.data;
+    List data;
+    if (rawData is Map && rawData['data'] is List) {
+      data = rawData['data'] as List;
+    } else if (rawData is List) {
+      data = rawData;
+    } else {
+      data = [];
+    }
+    return data.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+  }
 }
