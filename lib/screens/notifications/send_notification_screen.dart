@@ -132,13 +132,7 @@ class _SendNotificationScreenState extends State<SendNotificationScreen> {
           await _notificationService.sendToClass(_selectedClassId!, payload);
         } else {
           // Send to each selected parent
-          final validParentIds = _selectedParentIds.where((id) => !id.startsWith('unlinked_')).toList();
-          if (validParentIds.isEmpty) {
-            PopupNotification.showError(context, 'Selected parents do not have registered app accounts.');
-            setState(() => _isSending = false);
-            return;
-          }
-          for (final parentId in validParentIds) {
+          for (final parentId in _selectedParentIds) {
             await _notificationService.sendToUser(parentId, payload);
           }
         }
