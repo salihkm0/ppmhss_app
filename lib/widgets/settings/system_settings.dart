@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:school_management/utils/theme.dart';
 import 'package:school_management/services/auth_service.dart';
+import 'package:school_management/services/school_contacts_service.dart';
+import 'package:school_management/models/school_contacts_model.dart';
 import 'dart:io' show Platform;
 
 class SystemSettings extends StatefulWidget {
@@ -127,6 +129,134 @@ class _SystemSettingsState extends State<SystemSettings> {
     );
   }
 
+  Future<void> _showSchoolContactsDialog() async {
+    final service = SchoolContactsService();
+    SchoolContactsModel? contacts;
+
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (c) => const Center(child: CircularProgressIndicator()),
+      );
+
+      contacts = await service.getSchoolContacts();
+
+      if (!mounted) return;
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context);
+      _showMessage('Failed to load contacts: $e');
+      return;
+    }
+
+    final hmNameCtrl = TextEditingController(text: contacts.headmasterName);
+    final hmPhoneCtrl = TextEditingController(text: contacts.headmasterPhone);
+    final sitcNameCtrl = TextEditingController(text: contacts.sitcName);
+    final sitcPhoneCtrl = TextEditingController(text: contacts.sitcPhone);
+    final ptaNameCtrl = TextEditingController(text: contacts.ptaPresidentName);
+    final ptaPhoneCtrl = TextEditingController(text: contacts.ptaPresidentPhone);
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        bool isSaving = false;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('School Key Contacts', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Headmaster', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.primaryColor)),
+                    ),
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: hmNameCtrl,
+                      decoration: const InputDecoration(labelText: 'Name', isDense: true),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: hmPhoneCtrl,
+                      decoration: const InputDecoration(labelText: 'Phone', isDense: true),
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 16),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('SITC (System In-Charge)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue)),
+                    ),
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: sitcNameCtrl,
+                      decoration: const InputDecoration(labelText: 'Name', isDense: true),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: sitcPhoneCtrl,
+                      decoration: const InputDecoration(labelText: 'Phone', isDense: true),
+                      keyboardType: TextInputType.phone,
+                    ),
+                    const SizedBox(height: 16),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('PTA President', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.purple)),
+                    ),
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: ptaNameCtrl,
+                      decoration: const InputDecoration(labelText: 'Name', isDense: true),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: ptaPhoneCtrl,
+                      decoration: const InputDecoration(labelText: 'Phone', isDense: true),
+                      keyboardType: TextInputType.phone,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          setDialogState(() => isSaving = true);
+                          final updated = SchoolContactsModel(
+                            headmasterName: hmNameCtrl.text.trim(),
+                            headmasterPhone: hmPhoneCtrl.text.trim(),
+                            sitcName: sitcNameCtrl.text.trim(),
+                            sitcPhone: sitcPhoneCtrl.text.trim(),
+                            ptaPresidentName: ptaNameCtrl.text.trim(),
+                            ptaPresidentPhone: ptaPhoneCtrl.text.trim(),
+                          );
+
+                          final ok = await service.updateSchoolContacts(updated);
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            _showMessage(ok ? 'School contacts updated successfully' : 'Failed to update contacts');
+                          }
+                        },
+                  child: isSaving ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -142,6 +272,13 @@ class _SystemSettingsState extends State<SystemSettings> {
               subtitle: 'Put the system in maintenance mode',
               value: _maintenanceMode,
               onChanged: (value) => setState(() => _maintenanceMode = value),
+            ),
+            _buildButtonTile(
+              title: 'School Key Contacts',
+              subtitle: 'Configure Headmaster, SITC & PTA President',
+              buttonText: 'Configure',
+              buttonColor: AppTheme.primaryColor,
+              onPressed: _showSchoolContactsDialog,
             ),
             _buildButtonTile(
               title: 'App Updates',

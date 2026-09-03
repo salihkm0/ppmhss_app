@@ -10,6 +10,7 @@ import 'package:school_management/utils/theme.dart';
 import 'package:school_management/utils/formatters.dart';
 import 'package:school_management/widgets/common/loading_widget.dart';
 import 'package:school_management/widgets/common/error_widget.dart';
+import 'package:school_management/widgets/common/school_contacts_card.dart';
 import 'package:school_management/screens/parent/my_child_attendance_page.dart';
 import 'package:school_management/screens/parent/my_child_results_page.dart';
 
@@ -237,14 +238,14 @@ class _MyChildrenPageState extends State<MyChildrenPage> {
       return _buildEmptyState();
     }
 
-    return ListView.builder(
+    return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
-      itemCount: vm.myChildren.length,
-      itemBuilder: (context, index) {
-        final child = vm.myChildren[index];
-        return _buildChildCard(child);
-      },
+      children: [
+        const SchoolContactsCard(),
+        const SizedBox(height: 8),
+        ...vm.myChildren.map((child) => _buildChildCard(child)),
+      ],
     );
   }
 
