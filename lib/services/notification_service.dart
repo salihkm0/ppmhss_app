@@ -27,4 +27,8 @@ class NotificationService {
   Future<void> markAllAsRead() async {
     await _api.put('${ApiConfig.notifications}/mark-all-read');
   }
+
+  Future<void> sendNotification(Map<String, dynamic> data) async {
+    await _api.post(ApiConfig.notifications, data: data);
+  }
 }

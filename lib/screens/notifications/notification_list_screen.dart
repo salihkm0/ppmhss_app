@@ -223,12 +223,15 @@ class _NotificationListScreenState extends State<NotificationListScreen> {
         converter: (store) => store.state.auth.user?.role ?? 'parent',
         builder: (context, role) {
           if (role == 'admin' || role == 'staff') {
-            return FloatingActionButton(
-              onPressed: () {
-                Navigator.pushNamed(context, '/notifications/send');
-              },
-              backgroundColor: AppTheme.primaryColor,
-              child: const Icon(Icons.add, color: Colors.white),
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 75),
+              child: FloatingActionButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/notifications/send');
+                },
+                backgroundColor: AppTheme.primaryColor,
+                child: const Icon(Icons.add, color: Colors.white),
+              ),
             );
           }
           return const SizedBox.shrink();

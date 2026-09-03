@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_redux/flutter_redux.dart';
+import 'package:school_management/models/class_model.dart';
+import 'package:school_management/services/notification_service.dart';
+import 'package:school_management/store/app_state.dart';
 import 'package:school_management/widgets/common/custom_appbar.dart';
 import 'package:school_management/widgets/common/custom_button.dart';
 import 'package:school_management/widgets/common/custom_text_field.dart';
@@ -20,15 +24,13 @@ class _SendNotificationScreenState extends State<SendNotificationScreen> {
   final _linkController = TextEditingController();
   
   String _notificationType = 'info';
-  String _recipientType = 'role';
+  String _recipientType = 'class';
   String _selectedRole = 'parent';
-  String? _selectedClass;
+  String? _selectedClassId;
   User? _selectedUser;
   
   bool _isSending = false;
-
-  final List<String> _classOptions = ['Class 10-A', 'Class 9-B', 'Class 8-C'];
-  final List<String> _roleOptions = ['admin', 'staff', 'parent'];
+  final NotificationService _notificationService = NotificationService();
 
   @override
   void dispose() {
@@ -38,206 +40,285 @@ class _SendNotificationScreenState extends State<SendNotificationScreen> {
     super.dispose();
   }
 
-  void _sendNotification() async {
+  Future<void> _sendNotification() async {
     if (!_formKey.currentState!.validate()) return;
     
+    if (_recipientType == 'class' && _selectedClassId == null) {
+      PopupNotification.showError(context, 'Please select a class');
+      return;
+    }
+    if (_recipientType == 'user' && _selectedUser == null) {
+      PopupNotification.showError(context, 'Please select a recipient');
+      return;
+    }
+
     setState(() => _isSending = true);
     
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 2));
-    
-    setState(() => _isSending = false);
-    PopupNotification.showSuccess(context, 'Notification sent successfully');
-    
-    // Clear form
-    _titleController.clear();
-    _messageController.clear();
-    _linkController.clear();
-    _selectedUser = null;
+    try {
+      final payload = <String, dynamic>{
+        'title': _titleController.text.trim(),
+        'message': _messageController.text.trim(),
+        'type': _notificationType,
+        'recipientType': _recipientType,
+      };
+
+      if (_linkController.text.trim().isNotEmpty) {
+        payload['link'] = _linkController.text.trim();
+      }
+
+      if (_recipientType == 'role') {
+        payload['targetRole'] = _selectedRole;
+      } else if (_recipientType == 'class') {
+        payload['classId'] = _selectedClassId;
+      } else if (_recipientType == 'user') {
+        payload['recipientId'] = _selectedUser!.id;
+      }
+
+      await _notificationService.sendNotification(payload);
+
+      if (mounted) {
+        PopupNotification.showSuccess(context, 'Notification sent successfully');
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        PopupNotification.showError(context, 'Failed to send notification: ${e.toString()}');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSending = false);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomAppBar(
+      appBar: const CustomAppBar(
         title: 'Send Notification',
         showBackButton: true,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Notification Type
-              const Text(
-                'Notification Type',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-              ),
-              const SizedBox(height: 8),
-              Row(
+      body: StoreConnector<AppState, _SendNotificationVM>(
+        converter: (store) {
+          final isStaff = store.state.auth.user?.role == 'staff';
+          final availableClasses = isStaff
+              ? store.state.classes.teacherClasses
+              : store.state.classes.classes;
+          return _SendNotificationVM(
+            isStaff: isStaff,
+            role: store.state.auth.user?.role ?? 'parent',
+            availableClasses: availableClasses,
+          );
+        },
+        builder: (context, vm) {
+          final roleOptions = vm.isStaff ? ['parent'] : ['admin', 'staff', 'parent'];
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildTypeChip('Information', 'info', Icons.info_outline),
-                  const SizedBox(width: 8),
-                  _buildTypeChip('Success', 'success', Icons.check_circle_outline),
-                  const SizedBox(width: 8),
-                  _buildTypeChip('Warning', 'warning', Icons.warning_amber_outlined),
-                  const SizedBox(width: 8),
-                  _buildTypeChip('Error', 'error', Icons.error_outline),
-                ],
-              ),
-              const SizedBox(height: 20),
-              
-              // Title
-              CustomTextField(
-                controller: _titleController,
-                label: 'Title',
-                prefixIcon: Icons.title,
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Title is required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              
-              // Message
-              TextFormField(
-                controller: _messageController,
-                maxLines: 5,
-                decoration: InputDecoration(
-                  labelText: 'Message',
-                  hintText: 'Type your message here...',
-                  alignLabelWithHint: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide.none,
-                  ),
-                  filled: true,
-                  fillColor: Colors.grey[100],
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Message is required';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              
-              // Link (Optional)
-              CustomTextField(
-                controller: _linkController,
-                label: 'Link (Optional)',
-                prefixIcon: Icons.link,
-                keyboardType: TextInputType.url,
-              ),
-              const SizedBox(height: 24),
-              
-              const Divider(),
-              const SizedBox(height: 16),
-              
-              // Recipient Section
-              const Text(
-                'Send To',
-                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-              ),
-              const SizedBox(height: 12),
-              
-              // Recipient Type Tabs
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    _buildRecipientTab('Role', 'role'),
-                    _buildRecipientTab('Class', 'class'),
-                    _buildRecipientTab('User', 'user'),
+                  if (vm.isStaff) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryColor.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppTheme.primaryColor.withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.shield_outlined, color: AppTheme.primaryColor, size: 20),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'As a staff member, notifications will be sent strictly to parents of students in your assigned teaching classes.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppTheme.primaryColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              
-              // Recipient Selection based on type
-              if (_recipientType == 'role') ...[
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(12),
+
+                  // Notification Type
+                  const Text(
+                    'Notification Type',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: 8),
+                  Row(
                     children: [
-                      const Text(
-                        'Select Role',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        children: _roleOptions.map((role) {
-                          final isSelected = _selectedRole == role;
-                          return FilterChip(
-                            label: Text(role.toUpperCase()),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                              setState(() => _selectedRole = role);
-                            },
-                            selectedColor: AppTheme.primaryColor.withOpacity(0.2),
-                            checkmarkColor: AppTheme.primaryColor,
-                          );
-                        }).toList(),
-                      ),
+                      _buildTypeChip('Information', 'info', Icons.info_outline),
+                      const SizedBox(width: 8),
+                      _buildTypeChip('Success', 'success', Icons.check_circle_outline),
+                      const SizedBox(width: 8),
+                      _buildTypeChip('Warning', 'warning', Icons.warning_amber_outlined),
+                      const SizedBox(width: 8),
+                      _buildTypeChip('Error', 'error', Icons.error_outline),
                     ],
                   ),
-                ),
-              ] else if (_recipientType == 'class') ...[
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(12),
+                  const SizedBox(height: 20),
+                  
+                  // Title
+                  CustomTextField(
+                    controller: _titleController,
+                    label: 'Title',
+                    prefixIcon: Icons.title,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Title is required';
+                      }
+                      return null;
+                    },
                   ),
-                  child: DropdownButtonFormField<String>(
-                    value: _selectedClass,
-                    decoration: const InputDecoration(
-                      labelText: 'Select Class',
-                      border: InputBorder.none,
+                  const SizedBox(height: 16),
+                  
+                  // Message
+                  TextFormField(
+                    controller: _messageController,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      labelText: 'Message',
+                      hintText: 'Type your message here...',
+                      alignLabelWithHint: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[100],
                     ),
-                    items: _classOptions.map((String classOption) {
-                      return DropdownMenuItem<String>(
-                        value: classOption,
-                        child: Text(classOption),
-                      );
-                    }).toList(),
-                    onChanged: (value) => setState(() => _selectedClass = value),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Message is required';
+                      }
+                      return null;
+                    },
                   ),
-                ),
-              ] else ...[
-                UserSearchSelect(
-                  onSelect: (user) => setState(() => _selectedUser = user),
-                  selectedUser: _selectedUser,
-                  label: 'Search User',
-                  placeholder: 'Search by name or email...',
-                ),
-              ],
-              
-              const SizedBox(height: 32),
-              
-              // Send Button
-              CustomButton(
-                text: 'Send Notification',
-                onPressed: _sendNotification,
-                isLoading: _isSending,
+                  const SizedBox(height: 16),
+                  
+                  // Link (Optional)
+                  CustomTextField(
+                    controller: _linkController,
+                    label: 'Link (Optional)',
+                    prefixIcon: Icons.link,
+                    keyboardType: TextInputType.url,
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  const Divider(),
+                  const SizedBox(height: 16),
+                  
+                  // Recipient Section
+                  const Text(
+                    'Send To',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  const SizedBox(height: 12),
+                  
+                  // Recipient Type Tabs
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        _buildRecipientTab('Class', 'class'),
+                        _buildRecipientTab('Role', 'role'),
+                        _buildRecipientTab('Specific Parent/User', 'user'),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Recipient Selection based on type
+                  if (_recipientType == 'role') ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Select Target Role',
+                            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                          ),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 8,
+                            children: roleOptions.map((role) {
+                              final isSelected = _selectedRole == role;
+                              return FilterChip(
+                                label: Text(role.toUpperCase()),
+                                selected: isSelected,
+                                onSelected: (selected) {
+                                  setState(() => _selectedRole = role);
+                                },
+                                selectedColor: AppTheme.primaryColor.withOpacity(0.2),
+                                checkmarkColor: AppTheme.primaryColor,
+                              );
+                            }).toList(),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else if (_recipientType == 'class') ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedClassId,
+                        decoration: const InputDecoration(
+                          labelText: 'Select Target Class',
+                          border: InputBorder.none,
+                        ),
+                        items: vm.availableClasses.map((c) {
+                          final label = c.displayName ?? '${c.name}${c.section != null ? ' - ${c.section}' : ''}';
+                          return DropdownMenuItem<String>(
+                            value: c.id,
+                            child: Text(label),
+                          );
+                        }).toList(),
+                        onChanged: (value) => setState(() => _selectedClassId = value),
+                      ),
+                    ),
+                  ] else ...[
+                    UserSearchSelect(
+                      onSelect: (user) => setState(() => _selectedUser = user),
+                      selectedUser: _selectedUser,
+                      label: vm.isStaff ? 'Search Parent' : 'Search User',
+                      placeholder: vm.isStaff ? 'Search parent by name or email...' : 'Search user by name or email...',
+                    ),
+                  ],
+                  
+                  const SizedBox(height: 32),
+                  
+                  // Send Button
+                  CustomButton(
+                    text: 'Send Notification',
+                    onPressed: _sendNotification,
+                    isLoading: _isSending,
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -282,11 +363,23 @@ class _SendNotificationScreenState extends State<SendNotificationScreen> {
             style: TextStyle(
               color: isSelected ? Colors.white : Colors.grey[700],
               fontWeight: FontWeight.w500,
-              fontSize: 13,
+              fontSize: 12,
             ),
           ),
         ),
       ),
     );
   }
+}
+
+class _SendNotificationVM {
+  final bool isStaff;
+  final String role;
+  final List<ClassModel> availableClasses;
+
+  _SendNotificationVM({
+    required this.isStaff,
+    required this.role,
+    required this.availableClasses,
+  });
 }
