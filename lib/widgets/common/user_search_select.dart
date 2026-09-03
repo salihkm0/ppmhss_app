@@ -117,7 +117,7 @@ class _UserSearchSelectState extends State<UserSearchSelect> {
           onTap: () => setState(() => _showDropdown = true),
         ),
         // Selected User Display
-        if (widget.selectedUser != null) ...[
+        if (widget.selectedUser != null && widget.selectedUser!.id.isNotEmpty) ...[
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
@@ -136,7 +136,9 @@ class _UserSearchSelectState extends State<UserSearchSelect> {
                   ),
                   child: Center(
                     child: Text(
-                      widget.selectedUser!.name[0].toUpperCase(),
+                      widget.selectedUser!.name.trim().isNotEmpty
+                          ? widget.selectedUser!.name.trim()[0].toUpperCase()
+                          : '?',
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -151,18 +153,19 @@ class _UserSearchSelectState extends State<UserSearchSelect> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.selectedUser!.name,
+                        widget.selectedUser!.name.isNotEmpty ? widget.selectedUser!.name : 'Selected User',
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      Text(
-                        widget.selectedUser!.email,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[600],
+                      if (widget.selectedUser!.email.isNotEmpty)
+                        Text(
+                          widget.selectedUser!.email,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -203,12 +206,15 @@ class _UserSearchSelectState extends State<UserSearchSelect> {
               itemCount: _filteredUsers.length,
               itemBuilder: (context, index) {
                 final user = _filteredUsers[index];
+                final initial = user.name.trim().isNotEmpty
+                    ? user.name.trim()[0].toUpperCase()
+                    : '?';
                 return ListTile(
                   leading: CircleAvatar(
                     radius: 18,
                     backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
                     child: Text(
-                      user.name[0].toUpperCase(),
+                      initial,
                       style: TextStyle(
                         color: AppTheme.primaryColor,
                         fontWeight: FontWeight.bold,
