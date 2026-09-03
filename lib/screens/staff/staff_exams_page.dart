@@ -147,7 +147,7 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
             onRefresh: _loadData,
             color: AppTheme.primaryColor,
             child: ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 95),
               itemCount: vm.exams.length,
               itemBuilder: (context, index) =>
                   _buildExamCard(vm.exams[index], vm.teacherClasses, vm.currentUserId),

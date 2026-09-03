@@ -206,7 +206,7 @@ class _NotificationListScreenState extends State<NotificationListScreen> {
                               _loadNotifications();
                             },
                             child: ListView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 95),
                               itemCount: state.notifications.notifications.length,
                               itemBuilder: (context, index) {
                                 final notification = state.notifications.notifications[index];

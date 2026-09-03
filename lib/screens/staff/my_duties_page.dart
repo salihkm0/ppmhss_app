@@ -72,7 +72,7 @@ class _MyDutiesPageState extends State<MyDutiesPage> {
                   child: filtered.isEmpty
                       ? _buildEmptyState()
                       : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 95),
                           itemCount: filtered.length,
                           itemBuilder: (context, index) =>
                               _buildDutyCard(filtered[index]),
