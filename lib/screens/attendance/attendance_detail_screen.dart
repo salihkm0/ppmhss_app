@@ -28,11 +28,11 @@ class _AttendanceDetailScreenState extends State<AttendanceDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _loadAttendance();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadAttendance());
   }
 
   void _loadAttendance() {
-    final store = StoreProvider.of<AppState>(context);
+    final store = StoreProvider.of<AppState>(context, listen: false);
     store.dispatch(FetchStudentAttendanceAction(studentId: widget.studentId));
   }
 
