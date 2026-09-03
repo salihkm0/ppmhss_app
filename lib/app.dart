@@ -184,6 +184,7 @@ class _SchoolAppState extends State<SchoolApp> {
           routes: {
             '/login': (context) => const LoginScreen(),
             '/register-parent': (context) => const ParentRegistrationScreen(),
+            '/maintenance': (context) => const MaintenanceScreen(),
           },
           onGenerateRoute: _generateRoute,
         );

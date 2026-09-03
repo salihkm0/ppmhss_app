@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:dio/dio.dart';
 import 'package:school_management/config/api_config.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -80,10 +81,14 @@ class ApiService {
           await _prefs?.remove('refreshToken');
           _socketService.disconnect();
           _store?.dispatch(LogoutSuccessAction());
-          navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
+          });
         } else if (error.response?.statusCode == 503) {
           // Maintenance Mode
-          navigatorKey.currentState?.pushNamedAndRemoveUntil('/maintenance', (route) => false);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            navigatorKey.currentState?.pushNamedAndRemoveUntil('/maintenance', (route) => false);
+          });
         }
         return handler.next(error);
       },
