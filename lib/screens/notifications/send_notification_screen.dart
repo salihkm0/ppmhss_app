@@ -154,14 +154,13 @@ class _SendNotificationScreenState extends State<SendNotificationScreen> {
                     style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                   ),
                   const SizedBox(height: 8),
-                  Row(
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
                     children: [
                       _buildTypeChip('Information', 'info', Icons.info_outline),
-                      const SizedBox(width: 8),
                       _buildTypeChip('Success', 'success', Icons.check_circle_outline),
-                      const SizedBox(width: 8),
                       _buildTypeChip('Warning', 'warning', Icons.warning_amber_outlined),
-                      const SizedBox(width: 8),
                       _buildTypeChip('Error', 'error', Icons.error_outline),
                     ],
                   ),
@@ -234,7 +233,7 @@ class _SendNotificationScreenState extends State<SendNotificationScreen> {
                       children: [
                         _buildRecipientTab('Class', 'class'),
                         _buildRecipientTab('Role', 'role'),
-                        _buildRecipientTab('Specific Parent/User', 'user'),
+                        _buildRecipientTab('Specific User', 'user'),
                       ],
                     ),
                   ),
@@ -281,20 +280,22 @@ class _SendNotificationScreenState extends State<SendNotificationScreen> {
                         color: Colors.grey[100],
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: DropdownButtonFormField<String>(
-                        value: _selectedClassId,
-                        decoration: const InputDecoration(
-                          labelText: 'Select Target Class',
-                          border: InputBorder.none,
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButtonFormField<String>(
+                          value: _selectedClassId,
+                          decoration: const InputDecoration(
+                            labelText: 'Select Target Class',
+                            border: InputBorder.none,
+                          ),
+                          items: vm.availableClasses.map((c) {
+                            final label = c.displayName ?? '${c.name}${c.section != null ? ' - ${c.section}' : ''}';
+                            return DropdownMenuItem<String>(
+                              value: c.id,
+                              child: Text(label),
+                            );
+                          }).toList(),
+                          onChanged: (value) => setState(() => _selectedClassId = value),
                         ),
-                        items: vm.availableClasses.map((c) {
-                          final label = c.displayName ?? '${c.name}${c.section != null ? ' - ${c.section}' : ''}';
-                          return DropdownMenuItem<String>(
-                            value: c.id,
-                            child: Text(label),
-                          );
-                        }).toList(),
-                        onChanged: (value) => setState(() => _selectedClassId = value),
                       ),
                     ),
                   ] else ...[
@@ -306,13 +307,16 @@ class _SendNotificationScreenState extends State<SendNotificationScreen> {
                     ),
                   ],
                   
-                  const SizedBox(height: 32),
-                  
-                  // Send Button
-                  CustomButton(
-                    text: 'Send Notification',
-                    onPressed: _sendNotification,
-                    isLoading: _isSending,
+                  // Send Button with full width and bottom padding
+                  Padding(
+                    padding: const EdgeInsets.only(top: 32, bottom: 60),
+                    child: CustomButton(
+                      text: 'Send Notification',
+                      isFullWidth: true,
+                      icon: Icons.send_rounded,
+                      onPressed: _sendNotification,
+                      isLoading: _isSending,
+                    ),
                   ),
                 ],
               ),
@@ -325,24 +329,22 @@ class _SendNotificationScreenState extends State<SendNotificationScreen> {
 
   Widget _buildTypeChip(String label, String value, IconData icon) {
     final isSelected = _notificationType == value;
-    return Expanded(
-      child: FilterChip(
-        label: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 14),
-            const SizedBox(width: 4),
-            Text(label, style: const TextStyle(fontSize: 12)),
-          ],
-        ),
-        selected: isSelected,
-        onSelected: (selected) {
-          setState(() => _notificationType = value);
-        },
-        backgroundColor: Colors.grey[200],
-        selectedColor: AppTheme.primaryColor.withOpacity(0.2),
-        checkmarkColor: AppTheme.primaryColor,
+    return FilterChip(
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14),
+          const SizedBox(width: 4),
+          Text(label, style: const TextStyle(fontSize: 12)),
+        ],
       ),
+      selected: isSelected,
+      onSelected: (selected) {
+        setState(() => _notificationType = value);
+      },
+      backgroundColor: Colors.grey[200],
+      selectedColor: AppTheme.primaryColor.withOpacity(0.2),
+      checkmarkColor: AppTheme.primaryColor,
     );
   }
 
