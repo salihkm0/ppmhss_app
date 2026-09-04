@@ -12,6 +12,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:school_management/screens/settings/privacy_policy_screen.dart';
 import 'package:school_management/screens/settings/terms_and_conditions_screen.dart';
 import 'package:school_management/services/biometric_service.dart';
+import 'package:school_management/widgets/common/school_contacts_card.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -261,7 +262,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+            const SchoolContactsCard(),
+            const SizedBox(height: 16),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 4, vertical: 8),
               child: Text(
