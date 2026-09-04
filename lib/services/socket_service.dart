@@ -7,6 +7,7 @@ import 'package:school_management/actions/notification_actions.dart';
 import 'package:redux/redux.dart';
 import 'package:school_management/store/app_state.dart';
 import 'package:school_management/main.dart'; // Add for navigatorKey
+import 'package:package_info_plus/package_info_plus.dart';
 import 'dart:async';
 
 class SocketService {
@@ -147,16 +148,22 @@ class SocketService {
         'path': '/socket.io/',
       });
 
-      _socket!.onConnect((_) {
+      _socket!.onConnect((_) async {
         debugPrint('✅ Socket.IO connected successfully!');
         debugPrint('Socket ID: ${_socket!.id}');
         _isConnected = true;
         _isConnecting = false;
         _reconnectAttempts = 0;
         
+        String versionStr = '1.0.1';
+        try {
+          final info = await PackageInfo.fromPlatform();
+          versionStr = info.version;
+        } catch (_) {}
+
         _socket!.emit('client:ready', {
           'platform': 'flutter',
-          'version': '1.0.0',
+          'version': versionStr,
           'userId': userId,
           'role': userRole,
         });

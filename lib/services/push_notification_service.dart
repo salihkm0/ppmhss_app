@@ -3,8 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:school_management/services/api_service.dart';
-import 'package:school_management/config/api_config.dart';
-import 'package:flutter/foundation.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'dart:io';
 
 class PushNotificationService {
@@ -162,8 +161,12 @@ class PushNotificationService {
   }
 
   Future<String> _getAppVersion() async {
-    // Get app version from package info
-    return '1.0.0';
+    try {
+      final info = await PackageInfo.fromPlatform();
+      return info.version;
+    } catch (_) {
+      return '1.0.1';
+    }
   }
 
   void _setupForegroundHandler() {

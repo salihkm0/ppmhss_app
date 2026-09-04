@@ -48,12 +48,18 @@ class VersionService {
 
   Future<VersionCheckResult> checkVersion() async {
     try {
-      // 1. Get current app version
       final packageInfo = await PackageInfo.fromPlatform();
-      final currentAppVersion = packageInfo.version; // e.g., '1.0.0'
+      final currentAppVersion = packageInfo.version; // e.g., '1.0.1'
+      final platform = Platform.isIOS ? 'ios' : 'android';
 
       // 2. Fetch config from API
-      final response = await _dio.get('${ApiConfig.baseUrl}${ApiConfig.appVersion}');
+      final response = await _dio.get(
+        '${ApiConfig.baseUrl}${ApiConfig.appVersion}',
+        queryParameters: {
+          'platform': platform,
+          'version': currentAppVersion,
+        },
+      );
       
       if (response.statusCode == 200 && response.data['success'] == true) {
         final data = response.data['data'];
