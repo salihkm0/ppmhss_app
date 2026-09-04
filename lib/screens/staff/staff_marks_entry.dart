@@ -636,6 +636,41 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
       return;
     }
 
+    // Check if any non-absent student has TE mark equal to 0 or missing
+    final zeroTEMarkEntries = <Map<String, String>>[];
+    for (final subj in draftAllowedSubjects) {
+      final sKey = subj['examSubjectId']?.toString() ?? subj['subjectId']?.toString() ?? '';
+      for (final student in _students) {
+        final sid = student['studentId']?.toString() ?? '';
+        final subjs = (student['subjects'] as List? ?? []).cast<Map<String, dynamic>>();
+        final sObj = subjs.firstWhere(
+          (s) => (s['examSubjectId']?.toString() ?? s['subjectId']?.toString() ?? '') == sKey,
+          orElse: () => {},
+        );
+        final tm = _tempMarks[sid]?[sKey];
+        final isAbsent = tm != null ? (tm['isAbsent'] == true) : (sObj['isAbsent'] == true);
+        final tVal = tm != null ? (tm['theoryScore'] ?? '') : (sObj['theoryScore'] ?? '');
+        final tNum = int.tryParse(tVal.toString()) ?? 0;
+
+        if (!isAbsent && tNum == 0) {
+          zeroTEMarkEntries.add({
+            'studentName': student['name']?.toString() ?? student['studentName']?.toString() ?? 'Student',
+            'rollNumber': student['rollNumber']?.toString() ?? '-',
+            'subjectName': subj['displayName']?.toString() ?? subj['subjectName']?.toString() ?? 'Subject',
+          });
+        }
+      }
+    }
+
+    if (zeroTEMarkEntries.isNotEmpty) {
+      final first = zeroTEMarkEntries.first;
+      _showSnack(
+        'Cannot submit: ${first['studentName']} (Roll ${first['rollNumber']}) has 0 TE marks for ${first['subjectName']}. Mark as Absent if missing.',
+        isError: true,
+      );
+      return;
+    }
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
