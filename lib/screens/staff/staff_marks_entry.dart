@@ -61,9 +61,28 @@ class _MarkService {
     await _api.post('/marks/bulk/$examId/$classId', data: {'studentsData': studentsData});
   }
 
-  Future<void> submitMarksForReview({required String examId, required String classId}) async {
+  Future<void> submitMarksForReview({
+    required String examId,
+    required String classId,
+    String? subjectId,
+    List<dynamic>? subjectIds,
+  }) async {
     _api.invalidateCache('/marks');
-    await _api.post('/marks/submit', data: {'examId': examId, 'classId': classId});
+    final payload = <String, dynamic>{'examId': examId, 'classId': classId};
+    if (subjectId != null) payload['subjectId'] = subjectId;
+    if (subjectIds != null) payload['subjectIds'] = subjectIds;
+    await _api.post('/marks/submit', data: payload);
+  }
+
+  Future<void> revertMarksToDraft({
+    required String examId,
+    required String classId,
+    String? subjectId,
+  }) async {
+    _api.invalidateCache('/marks');
+    final payload = <String, dynamic>{'examId': examId, 'classId': classId};
+    if (subjectId != null) payload['subjectId'] = subjectId;
+    await _api.post('/marks/revert-draft', data: payload);
   }
 
   Future<void> reviewMarks({required String examId, required String classId, String action = 'approve'}) async {
@@ -329,23 +348,31 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
       (_isAdmin ||
           (_permissions?['allowedSubjects'] != null &&
               (_permissions!['allowedSubjects'] as List).isNotEmpty)) &&
-      _classStatus != 'published' &&
-      !(_classStatus != 'draft' && !_isAdmin);
+      _classStatus != 'published';
 
   bool _canEditSubject(String examSubjectId) {
     if (_permissions == null) return false;
-    final status = _classStatus;
+    if (_isAdmin) return true;
 
-    if (status == 'published') return false;
-    if (status == 'submitted' || status == 'reviewed') {
-      if (!_isAdmin) return false;
+    // Check per-subject submission status
+    final subj = _examSubjects.firstWhere(
+      (s) => (s['examSubjectId']?.toString() ?? s['subjectId']?.toString() ?? '') == examSubjectId,
+      orElse: () => {},
+    );
+    final subjStatus = subj['status']?.toString() ?? 'draft';
+    if (subjStatus != 'draft') {
+      return false; // Subject is submitted/reviewed/published and locked
     }
 
-    if (_isAdmin) return true;
     final allowed = (_permissions!['allowedSubjects'] as List? ?? []);
-    return allowed.any((s) =>
-        s['subjectId']?.toString() == examSubjectId ||
-        s['subjectId'] == examSubjectId);
+    final match = allowed.firstWhere(
+      (s) => s['subjectId']?.toString() == examSubjectId || s['subjectId'] == examSubjectId,
+      orElse: () => null,
+    );
+    if (match != null) {
+      return match['canEdit'] != false;
+    }
+    return false;
   }
 
   bool get _allMarksEntered =>
@@ -599,25 +626,141 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
       if (!mounted) return;
     }
 
+    final draftAllowedSubjects = _examSubjects.where((s) {
+      final examSubjectId = s['examSubjectId']?.toString() ?? s['subjectId']?.toString() ?? '';
+      return _canEditSubject(examSubjectId);
+    }).toList();
+
+    if (draftAllowedSubjects.isEmpty) {
+      _showSnack('No editable draft subjects available to submit', isError: true);
+      return;
+    }
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Submit for Review?'),
-        content: const Text('Marks will be submitted for admin review and locked for editing by staff. Are you sure?'),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade100,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.warning_amber_rounded, color: Colors.amber.shade800, size: 28),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Submit for Review?',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'You are about to submit marks for the following subject(s):',
+              style: TextStyle(fontSize: 13, color: Colors.black54),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.amber.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: draftAllowedSubjects.map((s) {
+                      final name = s['displayName'] ?? s['subjectName'] ?? s['name'] ?? 'Subject';
+                      return Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.amber.shade300),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.book_outlined, size: 14, color: Colors.amber.shade900),
+                            const SizedBox(width: 4),
+                            Text(
+                              name,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.amber.shade900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Divider(height: 1),
+                  ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.lock_outline, size: 15, color: Colors.amber.shade800),
+                      const SizedBox(width: 6),
+                      const Expanded(
+                        child: Text(
+                          'Marks will be locked for editing after submission.',
+                          style: TextStyle(fontSize: 12, color: Colors.black87),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.send_outlined, size: 15, color: Colors.amber.shade800),
+                      const SizedBox(width: 6),
+                      const Expanded(
+                        child: Text(
+                          'Status will change to Submitted for admin review.',
+                          style: TextStyle(fontSize: 12, color: Colors.black87),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: const Text('Cancel', style: TextStyle(color: Colors.black54)),
           ),
-          ElevatedButton(
+          ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.amber[700],
+              backgroundColor: Colors.amber.shade700,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Submit'),
+            icon: const Icon(Icons.send_rounded, size: 16),
+            label: const Text('Submit Marks', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -627,9 +770,18 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
 
     if (mounted) setState(() => _isSaving = true);
     try {
-      await _markService.submitMarksForReview(examId: examId, classId: widget.classId);
+      final subjectIds = draftAllowedSubjects
+          .map((s) => s['examSubjectId']?.toString() ?? s['subjectId']?.toString() ?? '')
+          .where((id) => id.isNotEmpty)
+          .toList();
+
+      await _markService.submitMarksForReview(
+        examId: examId,
+        classId: widget.classId,
+        subjectIds: subjectIds,
+      );
       if (mounted) setState(() => _isSaving = false);
-      _showSnack('Marks submitted for review successfully');
+      _showSnack('Subject marks submitted for review successfully');
       await _loadData(); // refresh to lock editing
     } catch (e) {
       if (mounted) setState(() => _isSaving = false);

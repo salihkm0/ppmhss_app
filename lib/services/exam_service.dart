@@ -100,17 +100,44 @@ class ExamService {
         : {'data': response.data};
   }
 
-  /// Submit marks for review
+  /// Submit marks for review (subject-level or class-level)
   Future<Map<String, dynamic>> submitMarksForReview({
     required String examId,
     required String classId,
+    String? subjectId,
+    List<dynamic>? subjectIds,
   }) async {
+    final payload = <String, dynamic>{
+      'examId': examId,
+      'classId': classId,
+    };
+    if (subjectId != null) payload['subjectId'] = subjectId;
+    if (subjectIds != null) payload['subjectIds'] = subjectIds;
+
     final response = await _api.post(
       ApiConfig.marksSubmit,
-      data: {
-        'examId': examId,
-        'classId': classId,
-      },
+      data: payload,
+    );
+    return response.data is Map<String, dynamic>
+        ? response.data as Map<String, dynamic>
+        : {'data': response.data};
+  }
+
+  /// Revert marks status to draft (Admin only, subject-level or class-level)
+  Future<Map<String, dynamic>> revertMarksToDraft({
+    required String examId,
+    required String classId,
+    String? subjectId,
+  }) async {
+    final payload = <String, dynamic>{
+      'examId': examId,
+      'classId': classId,
+    };
+    if (subjectId != null) payload['subjectId'] = subjectId;
+
+    final response = await _api.post(
+      '${ApiConfig.marks}/revert-draft',
+      data: payload,
     );
     return response.data is Map<String, dynamic>
         ? response.data as Map<String, dynamic>
