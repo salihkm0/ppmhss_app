@@ -1,15 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_redux/flutter_redux.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:school_management/store/app_state.dart';
 import 'package:school_management/utils/theme.dart';
 
-class CustomDrawer extends StatelessWidget {
+class CustomDrawer extends StatefulWidget {
   final VoidCallback onLogout;
 
   const CustomDrawer({
     super.key,
     required this.onLogout,
   });
+
+  @override
+  State<CustomDrawer> createState() => _CustomDrawerState();
+}
+
+class _CustomDrawerState extends State<CustomDrawer> {
+  PackageInfo? _packageInfo;
+
+  @override
+  void initState() {
+    super.initState();
+    _initPackageInfo();
+  }
+
+  Future<void> _initPackageInfo() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _packageInfo = info;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -424,7 +447,7 @@ class CustomDrawer extends StatelessWidget {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'v1.0.0',
+                        'v${_packageInfo?.version ?? '1.0.1'}',
                         style: TextStyle(
                           fontSize: 9,
                           color: Colors.grey[500],
@@ -553,7 +576,7 @@ class CustomDrawer extends StatelessWidget {
         child: InkWell(
           onTap: () {
             Navigator.pop(context);
-            onLogout();
+            widget.onLogout();
           },
           borderRadius: BorderRadius.circular(10),
           child: Container(

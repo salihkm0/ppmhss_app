@@ -2,13 +2,36 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:school_management/utils/theme.dart';
 import 'package:school_management/widgets/common/custom_appbar.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
-class HelpSupportScreen extends StatelessWidget {
+class HelpSupportScreen extends StatefulWidget {
   const HelpSupportScreen({super.key});
 
+  @override
+  State<HelpSupportScreen> createState() => _HelpSupportScreenState();
+}
+
+class _HelpSupportScreenState extends State<HelpSupportScreen> {
   static const String whatsappNumber = '+918157024638';
   static const String email = 'support@ppmhss.edu.in';
   static const String phone = '+91 8157024638';
+
+  PackageInfo? _packageInfo;
+
+  @override
+  void initState() {
+    super.initState();
+    _initPackageInfo();
+  }
+
+  Future<void> _initPackageInfo() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _packageInfo = info;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -199,9 +222,9 @@ class HelpSupportScreen extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  _buildInfoRow('App Version', '1.0.0'),
+                  _buildInfoRow('App Version', _packageInfo?.version ?? '1.0.1'),
                   const Divider(),
-                  _buildInfoRow('Build Number', '1'),
+                  _buildInfoRow('Build Number', _packageInfo?.buildNumber ?? '2'),
                   const Divider(),
                   _buildInfoRow('Developer', 'PPMHSS Team'),
                   const Divider(),

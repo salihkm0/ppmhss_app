@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:school_management/utils/theme.dart';
 import 'package:school_management/services/auth_service.dart';
 import 'package:school_management/services/school_contacts_service.dart';
@@ -15,6 +16,22 @@ class SystemSettings extends StatefulWidget {
 class _SystemSettingsState extends State<SystemSettings> {
   bool _maintenanceMode = false;
   bool _isLoading = false;
+  PackageInfo? _packageInfo;
+
+  @override
+  void initState() {
+    super.initState();
+    _initPackageInfo();
+  }
+
+  Future<void> _initPackageInfo() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) {
+      setState(() {
+        _packageInfo = info;
+      });
+    }
+  }
 
   final List<Map<String, dynamic>> _gradingSystem = [
     {'grade': 'A+', 'min': 90, 'max': 100, 'color': Colors.green},
@@ -341,8 +358,8 @@ class _SystemSettingsState extends State<SystemSettings> {
           title: 'System Information',
           icon: Icons.info_outline,
           children: [
-            _buildInfoRow('Version', '1.0.0'),
-            _buildInfoRow('Build Number', '100'),
+            _buildInfoRow('Version', _packageInfo?.version ?? '1.0.1'),
+            _buildInfoRow('Build Number', _packageInfo?.buildNumber ?? '2'),
             _buildInfoRow('Environment', 'Production'),
             _buildInfoRow('API Status', 'Connected'),
           ],
