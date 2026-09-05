@@ -496,7 +496,7 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
         focusNode.requestFocus();
         final nextCtrl = _controllers[nextKey];
         if (nextCtrl != null) {
-          nextCtrl.selection = TextSelection(baseOffset: 0, extentOffset: nextCtrl.text.length);
+          nextCtrl.selection = TextSelection.collapsed(offset: nextCtrl.text.length);
         }
         break;
       }
@@ -523,7 +523,7 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
         focusNode.requestFocus();
         final prevCtrl = _controllers[prevKey];
         if (prevCtrl != null) {
-          prevCtrl.selection = TextSelection(baseOffset: 0, extentOffset: prevCtrl.text.length);
+          prevCtrl.selection = TextSelection.collapsed(offset: prevCtrl.text.length);
         }
         break;
       }
@@ -1689,7 +1689,7 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
           fillColor: isAbsent ? Colors.red[50] : (enabled ? Colors.white : Colors.grey[100]),
         ),
         onTap: () {
-          controller.selection = TextSelection(baseOffset: 0, extentOffset: controller.text.length);
+          controller.selection = TextSelection.collapsed(offset: controller.text.length);
         },
         onChanged: onChanged,
         onFieldSubmitted: onSubmitted,
