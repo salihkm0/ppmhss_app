@@ -44,16 +44,25 @@ class _VersionCheckWrapperState extends State<VersionCheckWrapper> {
   Future<void> _launchStore() async {
     if (_result == null) return;
     final urlStr = _versionService.getStoreUrl(_result!);
-    if (urlStr.isEmpty) return;
-
-    final url = Uri.parse(urlStr);
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    } else {
-      // Fallback or error handling
+    if (urlStr.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open the store link.')),
+          const SnackBar(content: Text('Update link not available')),
+        );
+      }
+      return;
+    }
+
+    final url = Uri.parse(urlStr);
+    try {
+      final launched = await launchUrl(url, mode: LaunchMode.externalApplication);
+      if (!launched) {
+        await launchUrl(url, mode: LaunchMode.platformDefault);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open the update link.')),
         );
       }
     }

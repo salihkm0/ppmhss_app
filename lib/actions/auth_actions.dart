@@ -6,10 +6,9 @@ import 'package:school_management/services/push_notification_service.dart';
 import 'package:school_management/store/app_state.dart';
 import 'package:school_management/models/user_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:school_management/main.dart';
-import 'package:flutter/material.dart';
 import 'package:school_management/services/biometric_service.dart';
 import 'package:school_management/actions/academic_year_actions.dart';
+import 'package:school_management/services/api_service.dart';
 
 // Simple Actions
 class LoginAction {
@@ -115,14 +114,9 @@ ThunkAction<AppState> loginThunk(LoginAction action) {
           await prefs.setString('refreshToken', response['refreshToken']);
         }
         
-        // Set auth token in push notification service
+        // Set auth token in push notification service (automatically registers token with backend if available)
         final pushService = PushNotificationService();
         pushService.setAuthToken(token);
-        
-        // Send FCM token to backend if already available
-        if (pushService.token != null) {
-          await pushService.sendTokenToBackend();
-        }
         
         // Connect Socket.IO after successful login
         final socketService = SocketService();
@@ -131,57 +125,31 @@ ThunkAction<AppState> loginThunk(LoginAction action) {
         // Fetch global academic years
         store.dispatch(fetchAcademicYearsThunk(FetchAcademicYearsAction(limit: 100)));
         
-        // Biometric logic - MUST run before LoginSuccessAction to use the LoginScreen's context
-        if (!action.isBiometric && (action.email != null || action.phone != null)) {
-          final isBioAvailable = await BiometricService.isBiometricAvailable();
+        // Update stored biometric credentials if biometrics is already enabled
+        if (action.password.isNotEmpty) {
           final isBioEnabled = await BiometricService.isBiometricEnabled();
-          
-          if (isBioAvailable && !isBioEnabled) {
-            final ctx = navigatorKey.currentContext;
-            if (ctx != null) {
-              final String username = action.email ?? action.phone ?? '';
-              final String password = action.password;
-              
-              await showDialog(
-                context: ctx,
-                builder: (context) => AlertDialog(
-                  title: const Text('Enable Biometric Login?'),
-                  content: const Text('Would you like to use Face ID or Fingerprint to log in faster next time?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('No Thanks'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () async {
-                        await BiometricService.enableBiometrics();
-                        await BiometricService.saveCredentials(username, password);
-                        if (context.mounted) Navigator.pop(context);
-                      },
-                      child: const Text('Enable'),
-                    ),
-                  ],
-                ),
-              );
-            }
-          } else if (isBioEnabled) {
+          if (isBioEnabled) {
             final String username = action.email ?? action.phone ?? '';
-            await BiometricService.saveCredentials(username, action.password);
+            if (username.isNotEmpty) {
+              await BiometricService.saveCredentials(username, action.password);
+            }
           }
         }
         
-        store.dispatch(LoginSuccessAction(user: user, token: token));
+        store.dispatch(LoginSuccessAction(
+          user: user,
+          token: token,
+        ));
+        
         store.dispatch(ClearAuthErrorAction());
         store.dispatch(SetSplashCompleteAction(complete: true));
+        
       } else {
-        final errorMsg = response['message'] ?? 'Login failed';
-        store.dispatch(LoginFailureAction(error: errorMsg));
-        store.dispatch(SetSplashCompleteAction(complete: true));
+        throw Exception(response['message'] ?? 'Login failed');
       }
     } catch (e) {
-      print('❌ Login error caught: $e');
-      store.dispatch(LoginFailureAction(error: e.toString().replaceFirst('Exception: ', '')));
-      store.dispatch(SetSplashCompleteAction(complete: true));
+      print('❌ Login error: $e');
+      store.dispatch(LoginFailureAction(error: e.toString()));
     }
   };
 }
@@ -203,6 +171,14 @@ ThunkAction<AppState> logoutThunk(LogoutAction action) {
       // Disconnect Socket.IO on logout
       final socketService = SocketService();
       socketService.disconnect();
+      
+      // Clear push notification auth token
+      final pushService = PushNotificationService();
+      pushService.clearAuthToken();
+
+      // Clear API cache
+      final apiService = ApiService();
+      apiService.clearCache();
       
       store.dispatch(LogoutSuccessAction());
       store.dispatch(ClearAuthErrorAction());
@@ -264,11 +240,6 @@ ThunkAction<AppState> checkAuthThunk(CheckAuthAction action) {
       // Set auth token in push notification service
       final pushService = PushNotificationService();
       pushService.setAuthToken(token);
-      
-      // Send FCM token to backend if already available
-      if (pushService.token != null) {
-        await pushService.sendTokenToBackend();
-      }
       
       // Reconnect Socket.IO if token exists and user is logged in
       final state = store.state;

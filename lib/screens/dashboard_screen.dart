@@ -39,8 +39,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final store = StoreProvider.of<AppState>(context, listen: false);
     _socketService?.disconnect();
     await store.dispatch(logoutThunk(LogoutAction()));
-    if (mounted) {
-      Navigator.of(context).pushReplacementNamed('/login');
+    if (mounted && Navigator.of(context).canPop()) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
     }
   }
 

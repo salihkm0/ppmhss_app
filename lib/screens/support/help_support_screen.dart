@@ -222,9 +222,9 @@ class _HelpSupportScreenState extends State<HelpSupportScreen> {
               ),
               child: Column(
                 children: [
-                  _buildInfoRow('App Version', _packageInfo?.version ?? '1.0.1'),
+                  _buildInfoRow('App Version', _packageInfo?.version ?? '1.0.2'),
                   const Divider(),
-                  _buildInfoRow('Build Number', _packageInfo?.buildNumber ?? '2'),
+                  _buildInfoRow('Build Number', _packageInfo?.buildNumber ?? '3'),
                   const Divider(),
                   _buildInfoRow('Developer', 'PPMHSS Team'),
                   const Divider(),

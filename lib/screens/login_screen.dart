@@ -89,7 +89,13 @@ class _LoginScreenState extends State<LoginScreen> {
           isBiometric: true,
         );
         await store.dispatch(loginThunk(action));
-        if (mounted) setState(() => _isLoading = false);
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        if (store.state.auth.isAuthenticated) {
+          if (Navigator.of(context).canPop()) {
+            Navigator.of(context).popUntil((route) => route.isFirst);
+          }
+        }
       }
     }
   }
@@ -121,6 +127,12 @@ class _LoginScreenState extends State<LoginScreen> {
     
     if (!mounted) return;
     setState(() => _isLoading = false);
+
+    if (store.state.auth.isAuthenticated) {
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    }
   }
 
   @override

@@ -141,8 +141,8 @@ class _SchoolAppState extends State<SchoolApp> {
       builder: (context, state) {
         print('📱 AppState - isLoading: ${state.auth.isLoading}, isAuthenticated: ${state.auth.isAuthenticated}, authChecked: $_authChecked');
         
-        // Show splash screen while checking auth or loading
-        if (!_authChecked || state.auth.isLoading) {
+        // Show splash screen only while checking initial auth
+        if (!_authChecked) {
           return const SplashScreen();
         }
 

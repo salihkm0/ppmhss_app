@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_redux/flutter_redux.dart';
 import 'package:school_management/actions/exam_actions.dart';
 import 'package:school_management/actions/class_actions.dart';
@@ -32,11 +33,25 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   
   // Marks state: studentId -> subjectId -> {theoryScore, practicalScore, ceMarks, isAbsent}
   Map<String, Map<String, Map<String, dynamic>>> _marks = {};
+
+  final Map<String, FocusNode> _focusNodes = {};
+  final Map<String, TextEditingController> _controllers = {};
   
   bool _isLoading = false;
   bool _isSaving = false;
 
   final ExamService _examService = ExamService();
+
+  @override
+  void dispose() {
+    for (final node in _focusNodes.values) {
+      node.dispose();
+    }
+    for (final c in _controllers.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -134,6 +149,58 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
         _marks[studentId]![subjectId]!['practicalScore'] = '0';
       }
     });
+  }
+
+  void _handleFieldSubmitted(String studentId, String subjectId, String fieldType) {
+    final sIdx = _students.indexWhere((s) => s['studentId'].toString() == studentId);
+    if (sIdx == -1) return;
+
+    for (int nextIdx = sIdx + 1; nextIdx < _students.length; nextIdx++) {
+      final nextSid = _students[nextIdx]['studentId'].toString();
+      final marks = _marks[nextSid]?[subjectId] ?? {};
+      final isAbsent = marks['isAbsent'] == true;
+
+      if (isAbsent && fieldType != 'ceMarks') {
+        continue;
+      }
+
+      final nextKey = '${fieldType}_${nextSid}_$subjectId';
+      final focusNode = _focusNodes.putIfAbsent(nextKey, () => FocusNode());
+      if (focusNode.canRequestFocus) {
+        focusNode.requestFocus();
+        final nextCtrl = _controllers[nextKey];
+        if (nextCtrl != null) {
+          nextCtrl.selection = TextSelection(baseOffset: 0, extentOffset: nextCtrl.text.length);
+        }
+        break;
+      }
+    }
+  }
+
+  void _handleFieldArrowUp(String studentId, String subjectId, String fieldType) {
+    final sIdx = _students.indexWhere((s) => s['studentId'].toString() == studentId);
+    if (sIdx <= 0) return;
+
+    for (int prevIdx = sIdx - 1; prevIdx >= 0; prevIdx--) {
+      final prevSid = _students[prevIdx]['studentId'].toString();
+      final marks = _marks[prevSid]?[subjectId] ?? {};
+      final isAbsent = marks['isAbsent'] == true;
+
+      if (isAbsent && fieldType != 'ceMarks') {
+        continue;
+      }
+
+      final prevKey = '${fieldType}_${prevSid}_$subjectId';
+      final focusNode = _focusNodes.putIfAbsent(prevKey, () => FocusNode());
+      if (focusNode.canRequestFocus) {
+        focusNode.requestFocus();
+        final prevCtrl = _controllers[prevKey];
+        if (prevCtrl != null) {
+          prevCtrl.selection = TextSelection(baseOffset: 0, extentOffset: prevCtrl.text.length);
+        }
+        break;
+      }
+    }
   }
 
   Future<void> _saveMarks() async {
@@ -524,27 +591,42 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
         // CE Cell
         if (hasCE) {
           cells.add(DataCell(_buildGridInput(
+            fieldKey: 'ceMarks_${studentId}_$studentSubjectId',
+            studentId: studentId,
+            subjectId: studentSubjectId,
+            fieldType: 'ceMarks',
             value: marks['ceMarks']?.toString() ?? '',
             enabled: hasPermission,
             onChanged: (v) => _updateMark(studentId, studentSubjectId, 'ceMarks', v),
+            onSubmitted: (v) => _handleFieldSubmitted(studentId, studentSubjectId, 'ceMarks'),
             isAbsent: false,
           )));
         }
 
         // TE Cell
         cells.add(DataCell(_buildGridInput(
+          fieldKey: 'theoryScore_${studentId}_$studentSubjectId',
+          studentId: studentId,
+          subjectId: studentSubjectId,
+          fieldType: 'theoryScore',
           value: marks['theoryScore']?.toString() ?? '',
           enabled: hasPermission && !isAbsent,
           onChanged: (v) => _updateMark(studentId, studentSubjectId, 'theoryScore', v),
+          onSubmitted: (v) => _handleFieldSubmitted(studentId, studentSubjectId, 'theoryScore'),
           isAbsent: isAbsent,
         )));
 
         // PR Cell
         if (hasPrac) {
           cells.add(DataCell(_buildGridInput(
+            fieldKey: 'practicalScore_${studentId}_$studentSubjectId',
+            studentId: studentId,
+            subjectId: studentSubjectId,
+            fieldType: 'practicalScore',
             value: marks['practicalScore']?.toString() ?? '',
             enabled: hasPermission && !isAbsent,
             onChanged: (v) => _updateMark(studentId, studentSubjectId, 'practicalScore', v),
+            onSubmitted: (v) => _handleFieldSubmitted(studentId, studentSubjectId, 'practicalScore'),
             isAbsent: isAbsent,
           )));
         }
@@ -620,17 +702,48 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
   }
 
   Widget _buildGridInput({
+    required String fieldKey,
+    required String studentId,
+    required String subjectId,
+    required String fieldType,
     required String value,
     required bool enabled,
     required bool isAbsent,
     required Function(String) onChanged,
+    required Function(String) onSubmitted,
   }) {
-    return Container(
+    final focusNode = _focusNodes.putIfAbsent(fieldKey, () {
+      return FocusNode(onKeyEvent: (node, event) {
+        if (event is KeyDownEvent) {
+          if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
+              event.logicalKey == LogicalKeyboardKey.enter ||
+              event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+            onSubmitted('');
+            return KeyEventResult.handled;
+          } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+            _handleFieldArrowUp(studentId, subjectId, fieldType);
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
+      });
+    });
+
+    final controller = _controllers.putIfAbsent(fieldKey, () => TextEditingController(text: value));
+
+    if (!focusNode.hasFocus && controller.text != value) {
+      controller.text = value;
+    }
+
+    return SizedBox(
       width: 60,
       height: 40,
       child: TextFormField(
-        initialValue: value,
+        key: ValueKey(fieldKey),
+        controller: controller,
+        focusNode: focusNode,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        textInputAction: TextInputAction.next,
         enabled: enabled,
         textAlign: TextAlign.center,
         style: TextStyle(fontSize: 13, color: enabled ? Colors.black : Colors.grey, fontWeight: FontWeight.bold),
@@ -651,7 +764,11 @@ class _MarksEntryScreenState extends State<MarksEntryScreen> {
           filled: !enabled,
           fillColor: isAbsent ? Colors.red[50] : (enabled ? Colors.white : Colors.grey[100]),
         ),
+        onTap: () {
+          controller.selection = TextSelection(baseOffset: 0, extentOffset: controller.text.length);
+        },
         onChanged: onChanged,
+        onFieldSubmitted: onSubmitted,
       ),
     );
   }

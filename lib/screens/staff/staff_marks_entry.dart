@@ -139,6 +139,7 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
   // ── Focus & Navigation ──
   final Map<String, ExpansionTileController> _tileControllers = {};
   final Map<String, FocusNode> _focusNodes = {};
+  final Map<String, TextEditingController> _controllers = {};
 
   // ── UI ──
   bool _isLoading = false;
@@ -149,6 +150,9 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
   void dispose() {
     for (final node in _focusNodes.values) {
       node.dispose();
+    }
+    for (final c in _controllers.values) {
+      c.dispose();
     }
     super.dispose();
   }
@@ -476,43 +480,52 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
     final sIdx = students.indexWhere((s) => s['studentId'].toString() == studentId);
     if (sIdx == -1) return;
 
-    final subj = _examSubjects.firstWhere((s) => (s['examSubjectId']?.toString() ?? '') == examSubjectId, orElse: () => {});
-    final hasPrac = subj['hasPractical'] == true && (subj['practicalMaxMarks'] as num? ?? 0) > 0;
-    final hasCE = subj['ceEnabled'] == true && (subj['ceMaxMarks'] as num? ?? 0) > 0;
+    for (int nextIdx = sIdx + 1; nextIdx < students.length; nextIdx++) {
+      final nextSid = students[nextIdx]['studentId'].toString();
+      final tm = _tempMarks[nextSid]?[examSubjectId] ?? {};
+      final isAbsent = tm['isAbsent'] as bool? ?? false;
 
-    String nextField = '';
-    String nextStudentId = studentId;
-
-    if (fieldType == 'ceMarks') {
-      nextField = 'theoryScore';
-    } else if (fieldType == 'theoryScore') {
-      if (hasPrac) {
-        nextField = 'practicalScore';
-      } else {
-        if (sIdx + 1 < students.length) {
-          nextStudentId = students[sIdx + 1]['studentId'].toString();
-          nextField = hasCE ? 'ceMarks' : 'theoryScore';
-        }
+      // In web, if a student is absent and the field is theory or practical, skip to next student
+      if (isAbsent && fieldType != 'ceMarks') {
+        continue;
       }
-    } else if (fieldType == 'practicalScore') {
-      if (sIdx + 1 < students.length) {
-        nextStudentId = students[sIdx + 1]['studentId'].toString();
-        nextField = hasCE ? 'ceMarks' : 'theoryScore';
+
+      final nextKey = '${fieldType}_${nextSid}_$examSubjectId';
+      final focusNode = _focusNodes.putIfAbsent(nextKey, () => FocusNode());
+      if (focusNode.canRequestFocus) {
+        focusNode.requestFocus();
+        final nextCtrl = _controllers[nextKey];
+        if (nextCtrl != null) {
+          nextCtrl.selection = TextSelection(baseOffset: 0, extentOffset: nextCtrl.text.length);
+        }
+        break;
       }
     }
+  }
 
-    if (nextField.isNotEmpty) {
-      if (nextStudentId != studentId) {
-        _tileControllers[studentId]?.collapse();
-        _tileControllers[nextStudentId]?.expand();
-        // Wait for expansion animation to build fields
-        Future.delayed(const Duration(milliseconds: 300), () {
-          final nextKey = '${nextField}_${nextStudentId}_$examSubjectId';
-          _focusNodes[nextKey]?.requestFocus();
-        });
-      } else {
-        final nextKey = '${nextField}_${nextStudentId}_$examSubjectId';
-        _focusNodes[nextKey]?.requestFocus();
+  void _handleFieldArrowUp(String studentId, String examSubjectId, String fieldType) {
+    final students = _filteredStudents;
+    final sIdx = students.indexWhere((s) => s['studentId'].toString() == studentId);
+    if (sIdx <= 0) return;
+
+    for (int prevIdx = sIdx - 1; prevIdx >= 0; prevIdx--) {
+      final prevSid = students[prevIdx]['studentId'].toString();
+      final tm = _tempMarks[prevSid]?[examSubjectId] ?? {};
+      final isAbsent = tm['isAbsent'] as bool? ?? false;
+
+      if (isAbsent && fieldType != 'ceMarks') {
+        continue;
+      }
+
+      final prevKey = '${fieldType}_${prevSid}_$examSubjectId';
+      final focusNode = _focusNodes.putIfAbsent(prevKey, () => FocusNode());
+      if (focusNode.canRequestFocus) {
+        focusNode.requestFocus();
+        final prevCtrl = _controllers[prevKey];
+        if (prevCtrl != null) {
+          prevCtrl.selection = TextSelection(baseOffset: 0, extentOffset: prevCtrl.text.length);
+        }
+        break;
       }
     }
   }
@@ -1037,7 +1050,7 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
   Widget _buildAppBar() {
     return SliverAppBar(
       pinned: true,
-      expandedHeight: 130,
+      expandedHeight: 80,
       backgroundColor: AppTheme.primaryColor,
       foregroundColor: Colors.white,
       title: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -1060,21 +1073,34 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
   }
 
   Widget _buildBody() {
-    return Column(children: [
-      _buildExamSelector(),
-      if (_selectedExamId != null)
-        _buildWorkflowStatusCard(),
-      if (_selectedExamId != null && _subjectProgress.isNotEmpty)
-        _buildSubjectProgress(),
-      if (_selectedExamId != null && _examSubjects.isNotEmpty)
-        _buildSearchAndStats(),
-      if (_selectedExamId == null)
-        Expanded(child: _buildEmptyState(Icons.quiz_outlined, 'Select an exam to start entering marks')),
-      if (_selectedExamId != null && _examSubjects.isEmpty && !_isLoading)
-        Expanded(child: _buildEmptyState(Icons.lock_outline_rounded, 'No subjects available\nYou are not assigned to any subject for this class')),
-      if (_selectedExamId != null && _examSubjects.isNotEmpty)
-        Expanded(child: _buildStudentList()),
-    ]);
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildExamSelector(),
+          if (_selectedExamId != null)
+            _buildWorkflowStatusCard(),
+          if (_selectedExamId != null && _subjectProgress.isNotEmpty)
+            _buildSubjectProgress(),
+          if (_selectedExamId != null && _examSubjects.isNotEmpty)
+            _buildSearchAndStats(),
+          if (_selectedExamId == null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              child: _buildEmptyState(Icons.quiz_outlined, 'Select an exam to start entering marks'),
+            ),
+          if (_selectedExamId != null && _examSubjects.isEmpty && !_isLoading)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 40),
+              child: _buildEmptyState(Icons.lock_outline_rounded, 'No subjects available\nYou are not assigned to any subject for this class'),
+            ),
+          if (_selectedExamId != null && _examSubjects.isNotEmpty)
+            _buildStudentList(),
+          const SizedBox(height: 120),
+        ],
+      ),
+    );
   }
 
   // ── Exam Selector ────────────────────────────────────────────────
@@ -1481,6 +1507,9 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
         if (hasCE) {
           cells.add(DataCell(_buildGridInput(
             fieldKey: 'ceMarks_${sid}_$key',
+            studentId: sid,
+            examSubjectId: key,
+            fieldType: 'ceMarks',
             value: cVal?.toString() == '0' ? '' : (cVal?.toString() ?? ''),
             enabled: canEdit,
             isAbsent: false,
@@ -1493,6 +1522,9 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
         // TE Cell
         cells.add(DataCell(_buildGridInput(
           fieldKey: 'theoryScore_${sid}_$key',
+          studentId: sid,
+          examSubjectId: key,
+          fieldType: 'theoryScore',
           value: isAbsent ? '0' : (tVal?.toString() == '0' ? '' : (tVal?.toString() ?? '')),
           enabled: canEdit && !isAbsent,
           isAbsent: isAbsent,
@@ -1505,6 +1537,9 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
         if (hasPrac) {
           cells.add(DataCell(_buildGridInput(
             fieldKey: 'practicalScore_${sid}_$key',
+            studentId: sid,
+            examSubjectId: key,
+            fieldType: 'practicalScore',
             value: isAbsent ? '0' : (pVal?.toString() == '0' ? '' : (pVal?.toString() ?? '')),
             enabled: canEdit && !isAbsent,
             isAbsent: isAbsent,
@@ -1571,17 +1606,14 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
     return Container(
       color: Colors.white,
       child: SingleChildScrollView(
-        scrollDirection: Axis.vertical,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: DataTable(
-            headingRowColor: WidgetStateProperty.all(Colors.grey[100]),
-            dataRowMinHeight: 60,
-            dataRowMaxHeight: 60,
-            columnSpacing: 20,
-            columns: columns,
-            rows: rows,
-          ),
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          headingRowColor: WidgetStateProperty.all(Colors.grey[100]),
+          dataRowMinHeight: 60,
+          dataRowMaxHeight: 60,
+          columnSpacing: 20,
+          columns: columns,
+          rows: rows,
         ),
       ),
     );
@@ -1589,6 +1621,9 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
 
   Widget _buildGridInput({
     required String fieldKey,
+    required String studentId,
+    required String examSubjectId,
+    required String fieldType,
     required String value,
     required bool enabled,
     required bool isAbsent,
@@ -1596,20 +1631,46 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
     required Function(String) onChanged,
     required Function(String) onSubmitted,
   }) {
-    _focusNodes.putIfAbsent(fieldKey, () => FocusNode());
-    return Container(
+    final focusNode = _focusNodes.putIfAbsent(fieldKey, () {
+      return FocusNode(onKeyEvent: (node, event) {
+        if (event is KeyDownEvent) {
+          if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
+              event.logicalKey == LogicalKeyboardKey.enter ||
+              event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+            onSubmitted('');
+            return KeyEventResult.handled;
+          } else if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+            _handleFieldArrowUp(studentId, examSubjectId, fieldType);
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
+      });
+    });
+
+    final controller = _controllers.putIfAbsent(fieldKey, () => TextEditingController(text: value));
+
+    if (!focusNode.hasFocus && controller.text != value) {
+      controller.text = value;
+    }
+
+    return SizedBox(
       width: 60,
       height: 40,
       child: TextFormField(
         key: ValueKey(fieldKey),
-        focusNode: _focusNodes[fieldKey],
-        initialValue: value,
+        controller: controller,
+        focusNode: focusNode,
         keyboardType: TextInputType.number,
         inputFormatters: [FilteringTextInputFormatter.digitsOnly],
         textInputAction: TextInputAction.next,
         enabled: enabled,
         textAlign: TextAlign.center,
-        style: TextStyle(fontSize: 13, color: hasError ? Colors.red : (enabled ? Colors.black : Colors.grey), fontWeight: FontWeight.bold),
+        style: TextStyle(
+          fontSize: 13,
+          color: hasError ? Colors.red : (enabled ? Colors.black : Colors.grey),
+          fontWeight: FontWeight.bold,
+        ),
         decoration: InputDecoration(
           contentPadding: EdgeInsets.zero,
           border: OutlineInputBorder(
@@ -1627,6 +1688,9 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
           filled: !enabled,
           fillColor: isAbsent ? Colors.red[50] : (enabled ? Colors.white : Colors.grey[100]),
         ),
+        onTap: () {
+          controller.selection = TextSelection(baseOffset: 0, extentOffset: controller.text.length);
+        },
         onChanged: onChanged,
         onFieldSubmitted: onSubmitted,
       ),

@@ -10,20 +10,23 @@ class UpdateScreen extends StatelessWidget {
 
   Future<void> _launchStore(BuildContext context) async {
     final url = updateConfig['storeUrl'];
-    if (url == null || url.isEmpty) {
+    if (url == null || url.toString().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Store URL not available')),
+        const SnackBar(content: Text('Update URL not available')),
       );
       return;
     }
 
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
+    final uri = Uri.parse(url.toString());
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched) {
+        await launchUrl(uri, mode: LaunchMode.platformDefault);
+      }
+    } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open store')),
+          const SnackBar(content: Text('Could not open the update link')),
         );
       }
     }

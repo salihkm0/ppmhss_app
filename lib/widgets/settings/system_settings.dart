@@ -358,8 +358,8 @@ class _SystemSettingsState extends State<SystemSettings> {
           title: 'System Information',
           icon: Icons.info_outline,
           children: [
-            _buildInfoRow('Version', _packageInfo?.version ?? '1.0.1'),
-            _buildInfoRow('Build Number', _packageInfo?.buildNumber ?? '2'),
+            _buildInfoRow('Version', _packageInfo?.version ?? '1.0.2'),
+            _buildInfoRow('Build Number', _packageInfo?.buildNumber ?? '3'),
             _buildInfoRow('Environment', 'Production'),
             _buildInfoRow('API Status', 'Connected'),
           ],

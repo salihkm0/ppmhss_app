@@ -447,7 +447,7 @@ class _CustomDrawerState extends State<CustomDrawer> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'v${_packageInfo?.version ?? '1.0.1'}',
+                        'v${_packageInfo?.version ?? '1.0.2'}',
                         style: TextStyle(
                           fontSize: 9,
                           color: Colors.grey[500],

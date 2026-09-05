@@ -155,7 +155,7 @@ class SocketService {
         _isConnecting = false;
         _reconnectAttempts = 0;
         
-        String versionStr = '1.0.1';
+        String versionStr = '1.0.2';
         try {
           final info = await PackageInfo.fromPlatform();
           versionStr = info.version;

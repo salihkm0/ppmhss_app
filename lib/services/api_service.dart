@@ -77,13 +77,25 @@ class ApiService {
       },
       onError: (error, handler) async {
         if (error.response?.statusCode == 401) {
-          await _prefs?.remove('token');
-          await _prefs?.remove('refreshToken');
-          _socketService.disconnect();
-          _store?.dispatch(LogoutSuccessAction());
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            navigatorKey.currentState?.pushNamedAndRemoveUntil('/login', (route) => false);
-          });
+          final requestPath = error.requestOptions.path;
+          final isExcluded = requestPath.contains('/auth/login') ||
+              requestPath.contains('/auth/register') ||
+              requestPath.contains('/notifications/register-token');
+          final token = _prefs?.getString('token');
+
+          // Only perform global logout if the user had an active session token
+          // and the endpoint wasn't a login/register attempt or background token registration
+          if (!isExcluded && token != null && token.isNotEmpty) {
+            await _prefs?.remove('token');
+            await _prefs?.remove('refreshToken');
+            _socketService.disconnect();
+            _store?.dispatch(LogoutSuccessAction());
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (navigatorKey.currentState?.canPop() ?? false) {
+                navigatorKey.currentState?.popUntil((route) => route.isFirst);
+              }
+            });
+          }
         } else if (error.response?.statusCode == 503) {
           // Maintenance Mode
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -116,21 +128,23 @@ class ApiService {
     return response;
   }
 
-  Future<Response> post(String path, {dynamic data}) async {
-    return await _dio.post(path, data: data);
+  Future<Response> post(String path, {dynamic data, Options? options}) async {
+    return await _dio.post(path, data: data, options: options);
   }
 
-  Future<Response> put(String path, {dynamic data}) async {
-    return await _dio.put(path, data: data);
+  Future<Response> put(String path, {dynamic data, Options? options}) async {
+    return await _dio.put(path, data: data, options: options);
   }
 
-  Future<Response> patch(String path, {dynamic data}) async {
-    return await _dio.patch(path, data: data);
+  Future<Response> patch(String path, {dynamic data, Options? options}) async {
+    return await _dio.patch(path, data: data, options: options);
   }
 
-  Future<Response> delete(String path, {dynamic data}) async {
-    return await _dio.delete(path, data: data);
+  Future<Response> delete(String path, {dynamic data, Options? options}) async {
+    return await _dio.delete(path, data: data, options: options);
   }
+
+  SharedPreferences? get prefs => _prefs;
 
   String getToken() => _prefs?.getString('token') ?? '';
 

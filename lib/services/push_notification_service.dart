@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -31,7 +32,12 @@ class PushNotificationService {
     }
   }
 
+  void clearAuthToken() {
+    _authToken = null;
+  }
+
   Future<void> initialize() async {
+    if (_initialized) return;
     try {
       await Firebase.initializeApp();
       _firebaseMessaging = FirebaseMessaging.instance;
@@ -124,7 +130,7 @@ class PushNotificationService {
   }
 
   Future<void> sendTokenToBackend() async {
-    if (_authToken == null) {
+    if (_authToken == null || _authToken!.isEmpty) {
       print('⚠️ No auth token available, will send when authenticated');
       return;
     }
@@ -136,14 +142,18 @@ class PushNotificationService {
     
     try {
       final apiService = ApiService();
-      final response = await apiService.post('/notifications/register-token', data: {
-        'token': _token,
-        'deviceInfo': {
-          'platform': Platform.operatingSystem,
-          'model': await _getDeviceModel(),
-          'appVersion': await _getAppVersion(),
-        }
-      });
+      final response = await apiService.post(
+        '/notifications/register-token',
+        data: {
+          'token': _token,
+          'deviceInfo': {
+            'platform': Platform.operatingSystem,
+            'model': await _getDeviceModel(),
+            'appVersion': await _getAppVersion(),
+          }
+        },
+        options: Options(headers: {'Authorization': 'Bearer $_authToken'}),
+      );
       print('✅ FCM token sent to backend: ${response.data}');
     } catch (e) {
       print('❌ Failed to send FCM token to backend: $e');
@@ -165,7 +175,7 @@ class PushNotificationService {
       final info = await PackageInfo.fromPlatform();
       return info.version;
     } catch (_) {
-      return '1.0.1';
+      return '1.0.2';
     }
   }
 

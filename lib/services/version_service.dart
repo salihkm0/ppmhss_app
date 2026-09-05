@@ -63,11 +63,12 @@ class VersionService {
       
       if (response.statusCode == 200 && response.data['success'] == true) {
         final data = response.data['data'];
-        final String currentVersion = data['currentVersion'] ?? '1.0.0';
+        final String latestVersion = data['latestVersion'] ?? data['currentVersion'] ?? '1.0.0';
         final String minVersion = data['minVersion'] ?? '1.0.0';
         final bool forceUpdateFlag = data['forceUpdate'] ?? false;
-        final String playstoreUrl = data['playstoreUrl'] ?? '';
-        final String appstoreUrl = data['appstoreUrl'] ?? '';
+        final String storeUrl = (data['storeUrl'] ?? data['playStoreUrl'] ?? data['playstoreUrl'] ?? data['appStoreUrl'] ?? data['appstoreUrl'] ?? '').toString();
+        final String playstoreUrl = (data['playStoreUrl'] ?? data['playstoreUrl'] ?? storeUrl).toString();
+        final String appstoreUrl = (data['appStoreUrl'] ?? data['appstoreUrl'] ?? storeUrl).toString();
         final String updateMessage = data['updateMessage'] ?? 'Please update to the latest version.';
 
         // 3. Determine if we are below the minimum required version (Forced Update)
@@ -80,9 +81,8 @@ class VersionService {
           );
         }
 
-        // 4. Determine if we are below the current version (Soft Update)
-        // If forceUpdateFlag is true for ANY update, we make it forced if we are below currentVersion
-        if (_compareVersions(currentAppVersion, currentVersion) < 0) {
+        // 4. Determine if we are below the latest version (Soft Update or Forced if forceUpdateFlag)
+        if (_compareVersions(currentAppVersion, latestVersion) < 0) {
           return VersionCheckResult(
             status: forceUpdateFlag ? VersionStatus.forceUpdate : VersionStatus.softUpdate,
             playstoreUrl: playstoreUrl,

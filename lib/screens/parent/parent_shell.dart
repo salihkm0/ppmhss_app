@@ -131,7 +131,9 @@ class _ParentHomePage extends StatelessWidget {
   Future<void> _logout(BuildContext context) async {
     final store = StoreProvider.of<AppState>(context, listen: false);
     await store.dispatch(logoutThunk(LogoutAction()));
-    if (context.mounted) Navigator.of(context).pushReplacementNamed('/login');
+    if (context.mounted && Navigator.of(context).canPop()) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
   }
 
   String _greeting() {
