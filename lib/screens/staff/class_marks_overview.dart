@@ -397,8 +397,8 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
     try {
       final token = ApiService().getToken();
       final endpoint = isExcel
-          ? '/pdf/report-card/class-marks/excel/$classId/$examId?mode=$_marksMode'
-          : '/pdf/report-card/class-marks/download/$classId/$examId?mode=$_marksMode';
+          ? '/pdf/report-card/class-marks/excel/$classId/$examId?mode=$_marksMode&sortBy=$_sortBy'
+          : '/pdf/report-card/class-marks/download/$classId/$examId?mode=$_marksMode&sortBy=$_sortBy';
 
       final response = await Dio().get<List<int>>(
         '${ApiConfig.baseUrl}$endpoint',
