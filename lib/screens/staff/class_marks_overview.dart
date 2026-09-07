@@ -436,6 +436,49 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
     }
   }
 
+  Future<void> _downloadClassReportCards() async {
+    final classId = _selectedClassId;
+    final examId = _selectedExamId;
+    if (classId == null || examId == null) return;
+
+    if (mounted) setState(() => _isDownloading = true);
+    try {
+      final token = ApiService().getToken();
+      final endpoint = '/pdf/report-card/class/download/$classId/$examId';
+
+      final response = await Dio().get<List<int>>(
+        '${ApiConfig.baseUrl}$endpoint',
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {'Authorization': 'Bearer $token'},
+        ),
+      );
+
+      if (response.data == null || response.data!.isEmpty) {
+        throw 'Empty file response received';
+      }
+
+      final bytes = Uint8List.fromList(response.data!);
+      final fileName = 'Class_ReportCards_${classId}_$examId.pdf';
+      await Printing.sharePdf(bytes: bytes, filename: fileName);
+    } catch (e) {
+      if (mounted) {
+        String msg = '$e';
+        if (e is DioException && e.response?.data != null) {
+          try {
+            final body = String.fromCharCodes(e.response!.data as List<int>);
+            msg = body;
+          } catch (_) {}
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to download report cards: $msg'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isDownloading = false);
+    }
+  }
+
   Future<void> _downloadStudentMarklist(String studentId, String studentName) async {
     final examId = _selectedExamId;
     if (examId == null) return;
@@ -443,7 +486,7 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
     setState(() => _downloadingStudentId = studentId);
     try {
       final token = ApiService().getToken();
-      final endpoint = '/pdf/marklist/$studentId/$examId?mode=$_marksMode';
+      final endpoint = '/pdf/marklist/download/$studentId/$examId?mode=$_marksMode';
 
       final response = await Dio().get<List<int>>(
         '${ApiConfig.baseUrl}$endpoint',
@@ -467,6 +510,43 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to download marklist: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _downloadingStudentId = null);
+    }
+  }
+
+  Future<void> _downloadStudentReportCard(String studentId, String studentName) async {
+    final examId = _selectedExamId;
+    if (examId == null) return;
+
+    setState(() => _downloadingStudentId = studentId);
+    try {
+      final token = ApiService().getToken();
+      final endpoint = '/pdf/report-card/download/$studentId/$examId';
+
+      final response = await Dio().get<List<int>>(
+        '${ApiConfig.baseUrl}$endpoint',
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {'Authorization': 'Bearer $token'},
+        ),
+      );
+
+      if (response.data == null || response.data!.isEmpty) {
+        throw 'Empty file response received';
+      }
+
+      final bytes = Uint8List.fromList(response.data!);
+      final cleanName = studentName.replaceAll(RegExp(r'\s+'), '_');
+      final fileName = 'ReportCard_$cleanName.pdf';
+
+      await Printing.sharePdf(bytes: bytes, filename: fileName);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to download report card: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -779,38 +859,55 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
     return Container(
       color: _C.surface,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          OutlinedButton.icon(
-            onPressed: _isDownloading ? null : () => _downloadClassMarks(isExcel: false),
-            icon: const Icon(Icons.picture_as_pdf_rounded, size: 16, color: Colors.redAccent),
-            label: Text(
-              _isDownloading ? 'Downloading…' : 'Download PDF',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            OutlinedButton.icon(
+              onPressed: _isDownloading ? null : () => _downloadClassMarks(isExcel: false),
+              icon: const Icon(Icons.picture_as_pdf_rounded, size: 15, color: Colors.redAccent),
+              label: Text(
+                _isDownloading ? 'Downloading…' : 'Class Marks (PDF)',
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.redAccent),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.redAccent),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                visualDensity: VisualDensity.compact,
+              ),
             ),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Colors.redAccent),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              visualDensity: VisualDensity.compact,
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: _isDownloading ? null : _downloadClassReportCards,
+              icon: const Icon(Icons.badge_outlined, size: 15, color: Color(0xFF4F46E5)),
+              label: const Text(
+                'Report Cards (PDF)',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF4F46E5)),
+              ),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFF4F46E5)),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                visualDensity: VisualDensity.compact,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
-            onPressed: _isDownloading ? null : () => _downloadClassMarks(isExcel: true),
-            icon: const Icon(Icons.table_chart_rounded, size: 16),
-            label: Text(
-              _isDownloading ? 'Exporting…' : 'Export Excel (XLS)',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            const SizedBox(width: 8),
+            ElevatedButton.icon(
+              onPressed: _isDownloading ? null : () => _downloadClassMarks(isExcel: true),
+              icon: const Icon(Icons.table_chart_rounded, size: 15),
+              label: Text(
+                _isDownloading ? 'Exporting…' : 'Excel (XLS)',
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF059669),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                visualDensity: VisualDensity.compact,
+              ),
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF059669),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              visualDensity: VisualDensity.compact,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1227,28 +1324,55 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
                   ),
                 ),
               ),
-              // Actions (Marklist PDF download)
+              // Actions (Marklist & Report Card PDF download)
               DataCell(
                 Center(
-                  child: InkWell(
-                    onTap: isDownloadingThis
-                        ? null
-                        : () => _downloadStudentMarklist(student['studentId'].toString(), student['name'].toString()),
-                    borderRadius: BorderRadius.circular(6),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                      child: isDownloadingThis
-                          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: _C.primary))
-                          : const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.picture_as_pdf_outlined, size: 14, color: _C.primary),
-                                SizedBox(width: 3),
-                                Text('Marklist', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _C.primary)),
-                              ],
+                  child: isDownloadingThis
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: _C.primary))
+                      : PopupMenuButton<String>(
+                          padding: EdgeInsets.zero,
+                          tooltip: 'Download PDFs',
+                          icon: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.picture_as_pdf_outlined, size: 14, color: _C.primary),
+                              SizedBox(width: 2),
+                              Text('PDF', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _C.primary)),
+                              Icon(Icons.arrow_drop_down, size: 14, color: _C.primary),
+                            ],
+                          ),
+                          onSelected: (val) {
+                            final sid = student['studentId'].toString();
+                            final sname = student['name'].toString();
+                            if (val == 'marklist') {
+                              _downloadStudentMarklist(sid, sname);
+                            } else if (val == 'report_card') {
+                              _downloadStudentReportCard(sid, sname);
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            PopupMenuItem(
+                              value: 'marklist',
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.description_outlined, size: 16, color: _C.primary),
+                                  const SizedBox(width: 8),
+                                  Text('Marklist ($_marksMode)', style: const TextStyle(fontSize: 12)),
+                                ],
+                              ),
                             ),
-                    ),
-                  ),
+                            const PopupMenuItem(
+                              value: 'report_card',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.badge_outlined, size: 16, color: Color(0xFF4F46E5)),
+                                  SizedBox(width: 8),
+                                  Text('Report Card', style: TextStyle(fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                 ),
               ),
             ]);
@@ -1511,25 +1635,44 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
                   ),
                 ],
               ),
-              InkWell(
-                onTap: isDownloadingThis
-                    ? null
-                    : () => _downloadStudentMarklist(student['studentId'].toString(), student['name'].toString()),
-                borderRadius: BorderRadius.circular(6),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  child: isDownloadingThis
-                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: _C.primary))
-                      : const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.picture_as_pdf_outlined, size: 14, color: _C.primary),
-                            SizedBox(width: 4),
-                            Text('Marklist', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _C.primary)),
-                          ],
+              isDownloadingThis
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: _C.primary))
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        InkWell(
+                          onTap: () => _downloadStudentMarklist(student['studentId'].toString(), student['name'].toString()),
+                          borderRadius: BorderRadius.circular(6),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.picture_as_pdf_outlined, size: 14, color: _C.primary),
+                                SizedBox(width: 3),
+                                Text('Marklist', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _C.primary)),
+                              ],
+                            ),
+                          ),
                         ),
-                ),
-              ),
+                        const SizedBox(width: 4),
+                        InkWell(
+                          onTap: () => _downloadStudentReportCard(student['studentId'].toString(), student['name'].toString()),
+                          borderRadius: BorderRadius.circular(6),
+                          child: const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.badge_outlined, size: 14, color: Color(0xFF4F46E5)),
+                                SizedBox(width: 3),
+                                Text('Report Card', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF4F46E5))),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
             ],
           ),
         ),

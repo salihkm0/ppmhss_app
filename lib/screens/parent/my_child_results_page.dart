@@ -8,6 +8,10 @@ import 'package:school_management/models/parent_models.dart';
 import 'package:school_management/utils/theme.dart';
 import 'package:school_management/utils/formatters.dart';
 import 'package:school_management/widgets/common/loading_widget.dart';
+import 'dart:typed_data';
+import 'package:dio/dio.dart';
+import 'package:printing/printing.dart';
+import 'package:school_management/config/api_config.dart';
 import 'package:school_management/services/api_service.dart';
 
 class MyChildResultsPage extends StatefulWidget {
@@ -39,6 +43,48 @@ class _MyChildResultsPageState extends State<MyChildResultsPage> with SingleTick
   bool _isLoading = false;
   String? _error;
   String? _expandedExamId;
+  String? _downloadingExamId;
+
+  Future<void> _downloadPDF({required String examId, required String examName, required bool isReportCard}) async {
+    final student = _selectedChild;
+    if (student == null) return;
+
+    setState(() => _downloadingExamId = '${examId}_${isReportCard ? "rc" : "ml"}');
+    try {
+      final token = ApiService().getToken();
+      final endpoint = isReportCard
+          ? '/pdf/report-card/download/${student.id}/$examId'
+          : '/pdf/marklist/download/${student.id}/$examId';
+
+      final response = await Dio().get<List<int>>(
+        '${ApiConfig.baseUrl}$endpoint',
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {'Authorization': 'Bearer $token'},
+        ),
+      );
+
+      if (response.data == null || response.data!.isEmpty) {
+        throw 'Empty file response received';
+      }
+
+      final bytes = Uint8List.fromList(response.data!);
+      final cleanStudent = student.fullName.replaceAll(RegExp(r'\s+'), '_');
+      final cleanExam = examName.replaceAll(RegExp(r'\s+'), '_');
+      final prefix = isReportCard ? 'ReportCard' : 'Marklist';
+      final fileName = '${prefix}_${cleanStudent}_$cleanExam.pdf';
+
+      await Printing.sharePdf(bytes: bytes, filename: fileName);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to download PDF: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _downloadingExamId = null);
+    }
+  }
 
   @override
   void initState() {
@@ -894,6 +940,51 @@ class _MyChildResultsPageState extends State<MyChildResultsPage> with SingleTick
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  // PDF Download Actions
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _downloadingExamId != null
+                              ? null
+                              : () => _downloadPDF(examId: exam.examId, examName: exam.examName, isReportCard: true),
+                          icon: _downloadingExamId == '${exam.examId}_rc'
+                              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.badge_outlined, size: 16, color: Color(0xFF4F46E5)),
+                          label: const Text(
+                            'Report Card',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF4F46E5)),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFF4F46E5)),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _downloadingExamId != null
+                              ? null
+                              : () => _downloadPDF(examId: exam.examId, examName: exam.examName, isReportCard: false),
+                          icon: _downloadingExamId == '${exam.examId}_ml'
+                              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                              : const Icon(Icons.description_outlined, size: 16, color: Color(0xFF059669)),
+                          label: const Text(
+                            'Marklist',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF059669)),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFF059669)),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

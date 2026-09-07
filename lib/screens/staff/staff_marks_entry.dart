@@ -959,6 +959,44 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
     }
   }
 
+  Future<void> _downloadClassReportCards() async {
+    final examId = _selectedExamId;
+    if (examId == null) return;
+
+    if (mounted) setState(() => _isDownloading = true);
+    try {
+      final token = ApiService().getToken();
+      final endpoint = '/pdf/report-card/class/download/${widget.classId}/$examId';
+
+      final response = await Dio().get<List<int>>(
+        '${ApiConfig.baseUrl}$endpoint',
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {'Authorization': 'Bearer $token'},
+        ),
+      );
+
+      if (response.data == null || response.data!.isEmpty) {
+        throw 'Empty file response received';
+      }
+
+      final bytes = Uint8List.fromList(response.data!);
+      final fileName = 'Class_ReportCards_${widget.className.replaceAll(' ', '_')}_$examId.pdf';
+      await Printing.sharePdf(bytes: bytes, filename: fileName);
+    } catch (e) {
+      String msg = '$e';
+      if (e is DioException && e.response?.data != null) {
+        try {
+          final body = String.fromCharCodes(e.response!.data as List<int>);
+          msg = body;
+        } catch (_) {}
+      }
+      _showSnack('Failed to download report cards: $msg', isError: true);
+    } finally {
+      if (mounted) setState(() => _isDownloading = false);
+    }
+  }
+
   // ────────────────────────────────────────────────────────────────
   // Helpers
   // ────────────────────────────────────────────────────────────────
@@ -1275,6 +1313,16 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
                       label: const Text('PDF', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Colors.redAccent),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _isDownloading ? null : _downloadClassReportCards,
+                      icon: const Icon(Icons.badge_outlined, size: 14, color: Color(0xFF4F46E5)),
+                      label: const Text('Report Cards', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF4F46E5))),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF4F46E5)),
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                         visualDensity: VisualDensity.compact,
                       ),
