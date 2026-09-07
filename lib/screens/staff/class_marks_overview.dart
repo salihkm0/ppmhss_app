@@ -12,8 +12,6 @@ import 'package:flutter_redux/flutter_redux.dart';
 import 'package:school_management/services/api_service.dart';
 import 'package:school_management/services/exam_service.dart';
 import 'package:school_management/store/app_state.dart';
-import 'package:school_management/utils/theme.dart';
-import 'package:school_management/widgets/common/loading_widget.dart';
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 class _C {
@@ -23,7 +21,6 @@ class _C {
   static const text1 = Color(0xFF0F172A);
   static const text2 = Color(0xFF64748B);
   static const text3 = Color(0xFF94A3B8);
-  static const divider = Color(0xFFF1F5F9);
 
   static List<BoxShadow> shadow([double b = 8, double o = 0.06]) => [
         BoxShadow(
@@ -106,7 +103,6 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
   final _examService = ExamService();
 
   List<Map<String, dynamic>> _exams = [];
-  List<Map<String, dynamic>> _classes = [];
   String? _selectedExamId;
   String? _selectedClassId;
   Map<String, dynamic>? _data;
@@ -115,11 +111,9 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
   bool _isCardView = false;
   String _search = '';
   final _searchCtrl = TextEditingController();
-
-  bool get _isAdmin {
-    // Check role from store
-    return false; // Will be set properly in build via ViewModel
-  }
+  String _marksMode = 'total'; // 'total' | 'te' | 'both'
+  String _sortBy = 'rollNo'; // 'rollNo' | 'rank' | 'name' | 'percentage'
+  String? _downloadingStudentId;
 
   @override
   void initState() {
@@ -215,12 +209,41 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
     return (_data?['subjects'] as List? ?? []).cast<Map<String, dynamic>>();
   }
 
+  int _getSubjectTeMax(Map<String, dynamic> subj) {
+    final termMax = (subj['termMaxMarks'] as num?)?.toInt();
+    if (termMax != null && termMax > 0) return termMax;
+    final theoryMax = (subj['theoryMaxMarks'] as num?)?.toInt();
+    if (theoryMax != null && theoryMax > 0) return theoryMax;
+    final ceMax = (subj['ceMaxMarks'] as num?)?.toInt();
+    final max = (subj['maxMarks'] as num?)?.toInt();
+    if (ceMax != null && max != null && max > ceMax) {
+      return max - ceMax;
+    }
+    return max ?? 100;
+  }
+
+  int _getSubjectTotalMax(Map<String, dynamic> subj) {
+    final max = (subj['maxMarks'] as num?)?.toInt();
+    if (max != null && max > 0) return max;
+    final ceMax = (subj['ceMaxMarks'] as num?)?.toInt() ?? 0;
+    return _getSubjectTeMax(subj) + ceMax;
+  }
+
+  dynamic _getRollNum(dynamic raw) {
+    if (raw == null || raw.toString().trim().isEmpty) return 999999;
+    final parsed = int.tryParse(raw.toString().trim());
+    return parsed ?? raw.toString().trim();
+  }
+
   List<Map<String, dynamic>> get _studentRows {
     final students =
         (_data?['students'] as List? ?? []).cast<Map<String, dynamic>>();
     final rows = students.map((student) {
       int totalObtained = 0;
       int totalMax = 0;
+      int teTotalObtained = 0;
+      int teTotalMax = 0;
+
       final subjectMarks = _subjects.map((subj) {
         final key = subj['examSubjectId']?.toString() ?? '';
         final sList =
@@ -233,46 +256,105 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
               key,
           orElse: () => {},
         );
-        final theory = (sm['theoryScore'] as num? ?? 0).toInt();
-        final practical = (sm['practicalScore'] as num? ?? 0).toInt();
-        final ce =
-            (sm['ceMarks'] as num? ?? sm['ceScore'] as num? ?? 0).toInt();
         final isAbsent = sm['isAbsent'] == true;
-        final total = isAbsent ? 0 : theory + practical + ce;
-        final max = (subj['maxMarks'] as num? ?? 100).toInt();
-        if (!isAbsent) {
+        final theory = isAbsent ? 0 : ((sm['theoryScore'] as num?)?.toInt() ?? 0);
+        final practical = (sm['practicalScore'] as num?)?.toInt() ?? 0;
+        final ce = ((sm['ceMarks'] ?? sm['ceScore']) as num?)?.toInt() ?? 0;
+        final isEntered = isAbsent ||
+            (sm['isEnteredExplicitly'] == true) ||
+            (sm['isEntered'] == true) ||
+            (sm['theoryScore'] != null && (sm['theoryScore'] as num) > 0) ||
+            (sm['ceMarks'] != null && (sm['ceMarks'] as num) > 0) ||
+            (sm['ceScore'] != null && (sm['ceScore'] as num) > 0);
+
+        final totalScore = (sm['totalScore'] as num?)?.toInt();
+        final total = isEntered
+            ? (totalScore != null && totalScore > 0 ? totalScore : (isAbsent ? ce : theory + practical + ce))
+            : (isAbsent ? ce : 0);
+
+        final int teMax = ((sm['termMaxMarks'] ?? sm['theoryMaxMarks']) as num?)?.toInt() ?? _getSubjectTeMax(subj);
+        final int max = (sm['maxMarks'] as num?)?.toInt() ?? _getSubjectTotalMax(subj);
+
+        if (isEntered || (isAbsent && ce > 0)) {
           totalObtained += total;
           totalMax += max;
+          teTotalObtained += theory;
+          teTotalMax += teMax;
         }
+
+        final teGradeInfo = _gradeInfo(theory, teMax);
+        final totalGradeInfo = _gradeInfo(total, max);
+        final isTeWarning = teMax > 0 && ((theory / teMax) * 100 < 30);
+
         return {
           'examSubjectId': key,
           'name': subj['displayName'] ?? subj['subjectName'] ?? '',
           'total': total,
           'max': max,
+          'theory': theory,
+          'teMax': teMax,
+          'ce': ce,
           'isAbsent': isAbsent,
-          'isEntered': sm['isEntered'] ?? false,
+          'isEntered': isEntered,
+          'teGradeInfo': teGradeInfo,
+          'totalGradeInfo': totalGradeInfo,
+          'isTeWarning': isTeWarning,
         };
       }).toList();
 
       final pct = totalMax > 0 ? (totalObtained / totalMax) * 100 : 0.0;
+      final tePct = teTotalMax > 0 ? (teTotalObtained / teTotalMax) * 100 : 0.0;
+
       return {
-        'studentId': student['studentId'],
+        'studentId': student['studentId'] ?? student['_id'],
         'name': student['studentName'] ?? '',
         'admissionNo': student['admissionNo'] ?? student['studentCode'] ?? '-',
+        'rollNumber': student['rollNumber'] ?? student['rollNo'] ?? student['slNo'],
         'subjectMarks': subjectMarks,
         'totalObtained': totalObtained,
         'totalMax': totalMax,
         'percentage': pct,
         'gradeInfo': _gradeInfo(totalObtained, totalMax),
+        'teTotalObtained': teTotalObtained,
+        'teTotalMax': teTotalMax,
+        'tePercentage': tePct,
+        'teGradeInfo': _gradeInfo(teTotalObtained, teTotalMax),
       };
     }).toList();
 
-    // Sort by percentage desc → assign rank
-    rows.sort((a, b) =>
-        (b['percentage'] as double).compareTo(a['percentage'] as double));
+    // 1. Calculate rank based on active marksMode percentage
+    rows.sort((a, b) {
+      final aPct = _marksMode == 'te' ? (a['tePercentage'] as double) : (a['percentage'] as double);
+      final bPct = _marksMode == 'te' ? (b['tePercentage'] as double) : (b['percentage'] as double);
+      return bPct.compareTo(aPct);
+    });
     for (int i = 0; i < rows.length; i++) {
       rows[i] = {...rows[i], 'rank': i + 1};
     }
+
+    // 2. Sort display order based on _sortBy
+    rows.sort((a, b) {
+      if (_sortBy == 'name') {
+        return (a['name'] as String).compareTo(b['name'] as String);
+      }
+      if (_sortBy == 'percentage') {
+        final aPct = _marksMode == 'te' ? (a['tePercentage'] as double) : (a['percentage'] as double);
+        final bPct = _marksMode == 'te' ? (b['tePercentage'] as double) : (b['percentage'] as double);
+        return bPct.compareTo(aPct);
+      }
+      if (_sortBy == 'rank') {
+        return (a['rank'] as int).compareTo(b['rank'] as int);
+      }
+      // default 'rollNo'
+      final rA = _getRollNum(a['rollNumber']);
+      final rB = _getRollNum(b['rollNumber']);
+      if (rA != rB) {
+        if (rA is int && rB is int) return rA.compareTo(rB);
+        return rA.toString().compareTo(rB.toString());
+      }
+      return (a['name'] as String).compareTo(b['name'] as String);
+    });
+
     return rows;
   }
 
@@ -315,8 +397,8 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
     try {
       final token = ApiService().getToken();
       final endpoint = isExcel
-          ? '/pdf/report-card/class-marks/excel/$classId/$examId'
-          : '/pdf/report-card/class-marks/download/$classId/$examId';
+          ? '/pdf/report-card/class-marks/excel/$classId/$examId?mode=$_marksMode'
+          : '/pdf/report-card/class-marks/download/$classId/$examId?mode=$_marksMode';
 
       final response = await Dio().get<List<int>>(
         '${ApiConfig.baseUrl}$endpoint',
@@ -332,7 +414,8 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
 
       final bytes = Uint8List.fromList(response.data!);
       final ext = isExcel ? 'xlsx' : 'pdf';
-      final fileName = 'Class_Marks_${classId}_$examId.$ext';
+      final modeSuffix = _marksMode == 'te' ? '_TE' : (_marksMode == 'both' ? '_Both' : '_Total');
+      final fileName = 'Class_Marks_${classId}_$examId$modeSuffix.$ext';
 
       if (isExcel) {
         final tempDir = await getTemporaryDirectory();
@@ -353,12 +436,51 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
     }
   }
 
+  Future<void> _downloadStudentMarklist(String studentId, String studentName) async {
+    final examId = _selectedExamId;
+    if (examId == null) return;
+
+    setState(() => _downloadingStudentId = studentId);
+    try {
+      final token = ApiService().getToken();
+      final endpoint = '/pdf/marklist/$studentId/$examId?mode=$_marksMode';
+
+      final response = await Dio().get<List<int>>(
+        '${ApiConfig.baseUrl}$endpoint',
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {'Authorization': 'Bearer $token'},
+        ),
+      );
+
+      if (response.data == null || response.data!.isEmpty) {
+        throw 'Empty file response received';
+      }
+
+      final bytes = Uint8List.fromList(response.data!);
+      final modeSuffix = _marksMode == 'te' ? '_TE' : (_marksMode == 'both' ? '_Both' : '');
+      final cleanName = studentName.replaceAll(RegExp(r'\s+'), '_');
+      final fileName = 'Marklist_$cleanName$modeSuffix.pdf';
+
+      await Printing.sharePdf(bytes: bytes, filename: fileName);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to download marklist: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _downloadingStudentId = null);
+    }
+  }
+
   List<Map<String, dynamic>> get _filtered {
     final q = _search.toLowerCase();
     return _studentRows
         .where((s) =>
             (s['name'] as String).toLowerCase().contains(q) ||
-            (s['admissionNo'] as String).toLowerCase().contains(q))
+            (s['admissionNo'] as String).toLowerCase().contains(q) ||
+            (s['rollNumber'] != null && s['rollNumber'].toString().toLowerCase().contains(q)))
         .toList();
   }
 
@@ -479,7 +601,7 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
                           children: [
                             _buildSummaryRow(),
                             _buildExportBar(),
-                            _buildSearchBar(),
+                            _buildControlsBar(),
                             Expanded(child: _isCardView ? _buildCardView() : _buildTableView()),
                           ],
                         );
@@ -626,9 +748,9 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
   Widget _buildSummaryRow() {
     final rows = _studentRows;
     if (rows.isEmpty) return const SizedBox();
-    final avg =
-        rows.fold(0.0, (s, r) => s + (r['percentage'] as double)) / rows.length;
-    final pass = rows.where((r) => (r['percentage'] as double) >= 40).length;
+    final isTe = _marksMode == 'te';
+    final avg = rows.fold(0.0, (s, r) => s + (isTe ? (r['tePercentage'] as double) : (r['percentage'] as double))) / rows.length;
+    final pass = rows.where((r) => (isTe ? (r['tePercentage'] as double) : (r['percentage'] as double)) >= 40).length;
     final completedSubjects = _subjects.where((subj) {
       final key = subj['examSubjectId']?.toString() ?? '';
       return rows.every((s) => (s['subjectMarks'] as List)
@@ -713,38 +835,133 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
     );
   }
 
-  Widget _buildSearchBar() {
-    return Padding(
+  Widget _buildControlsBar() {
+    return Container(
+      color: _C.surface,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      child: TextField(
-        controller: _searchCtrl,
-        decoration: InputDecoration(
-          hintText: 'Search student…',
-          hintStyle: const TextStyle(color: _C.text3, fontSize: 13),
-          prefixIcon: const Icon(Icons.search, color: _C.text3, size: 18),
-          suffixIcon: _search.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.clear, size: 18),
-                  onPressed: () {
-                    _searchCtrl.clear();
-                    setState(() => _search = '');
-                  })
-              : null,
-          filled: true,
-          fillColor: _C.surface,
-          border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-          enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Color(0xFFE2E8F0))),
-          focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _C.primary)),
-          contentPadding: const EdgeInsets.symmetric(vertical: 10),
-          isDense: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // View Mode Toggle
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              children: [
+                _modeButton('te', 'TE Marks & Grade'),
+                _modeButton('total', 'TE + CE (Total)'),
+                _modeButton('both', 'Both'),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Search & Sort Row
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _searchCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Search student…',
+                    hintStyle: const TextStyle(color: _C.text3, fontSize: 13),
+                    prefixIcon: const Icon(Icons.search, color: _C.text3, size: 18),
+                    suffixIcon: _search.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () {
+                              _searchCtrl.clear();
+                              setState(() => _search = '');
+                            },
+                          )
+                        : null,
+                    filled: true,
+                    fillColor: Colors.white,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: const BorderSide(color: _C.primary)),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                    isDense: true,
+                  ),
+                  onChanged: (v) => setState(() => _search = v),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _sortBy,
+                    icon: const Icon(Icons.swap_vert, size: 18, color: _C.text2),
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _C.text1),
+                    onChanged: (v) {
+                      if (v != null) setState(() => _sortBy = v);
+                    },
+                    items: const [
+                      DropdownMenuItem(value: 'rollNo', child: Text('Sort by Roll No')),
+                      DropdownMenuItem(value: 'rank', child: Text('Sort by Rank')),
+                      DropdownMenuItem(value: 'name', child: Text('Sort by Name')),
+                      DropdownMenuItem(value: 'percentage', child: Text('Sort by %')),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _modeButton(String mode, String label) {
+    final isSelected = _marksMode == mode;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _marksMode = mode),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 7),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.06),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ]
+                : null,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+              color: isSelected ? _C.primary : _C.text2,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
-        onChanged: (v) => setState(() => _search = v),
       ),
     );
   }
@@ -765,116 +982,275 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
           columnSpacing: 16,
           columns: [
             const DataColumn(
-                label: Text('#',
-                    style:
-                        TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
+              label: Text('Roll No',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
             const DataColumn(
-                label: Text('Student',
-                    style:
-                        TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
-            ...subjects.map((s) => DataColumn(
-                  label: SizedBox(
-                    width: 70,
-                    child: Text(
-                      s['displayName'] ?? s['subjectName'] ?? '',
-                      style: const TextStyle(
-                          fontSize: 10, fontWeight: FontWeight.w600),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                )),
-            const DataColumn(
-                label: Text('Total',
-                    style:
-                        TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
-            const DataColumn(
-                label: Text('%',
-                    style:
-                        TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
-            const DataColumn(
-                label: Text('Grade',
-                    style:
-                        TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
-          ],
-          rows: rows.map((student) {
-            final g = student['gradeInfo'] as Map<String, dynamic>;
-            return DataRow(cells: [
-              // Rank
-              DataCell(Text('${student['rank']}',
-                  style: const TextStyle(
-                      fontSize: 11, fontWeight: FontWeight.w600))),
-              // Student name
-              DataCell(SizedBox(
-                width: 110,
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              label: Text('Student',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700))),
+            ...subjects.map((s) {
+              final teMax = _getSubjectTeMax(s);
+              final totalMax = _getSubjectTotalMax(s);
+              String subHeader = '/$totalMax';
+              if (_marksMode == 'te') {
+                subHeader = 'TE /$teMax';
+              } else if (_marksMode == 'both') {
+                subHeader = 'TE:/$teMax | Tot:/$totalMax';
+              }
+              return DataColumn(
+                label: SizedBox(
+                  width: _marksMode == 'both' ? 105 : 75,
+                  child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(student['name'] as String,
-                          style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: _C.text1),
-                          overflow: TextOverflow.ellipsis),
-                      Text(student['admissionNo'] as String,
-                          style: const TextStyle(fontSize: 9, color: _C.text3)),
-                    ]),
+                      Text(
+                        s['displayName'] ?? s['subjectName'] ?? '',
+                        style: const TextStyle(
+                            fontSize: 10, fontWeight: FontWeight.w600),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        subHeader,
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: _marksMode == 'te' ? FontWeight.bold : FontWeight.normal,
+                          color: _marksMode == 'te' ? _C.primary : _C.text3,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+            DataColumn(
+              label: Text(
+                _marksMode == 'te'
+                    ? 'TE Total'
+                    : (_marksMode == 'both' ? 'Total (TE/Tot)' : 'Total'),
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+              ),
+            ),
+            DataColumn(
+              label: Text(
+                _marksMode == 'te' ? 'TE %' : '%',
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+              ),
+            ),
+            const DataColumn(
+              label: Text('Actions',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+            ),
+          ],
+          rows: rows.map((student) {
+            final roll = student['rollNumber'] ?? student['rollNo'] ?? student['slNo'] ?? '-';
+            final teObt = student['teTotalObtained'];
+            final teMax = student['teTotalMax'];
+            final totObt = student['totalObtained'];
+            final totMax = student['totalMax'];
+            final pct = (_marksMode == 'te' ? student['tePercentage'] : student['percentage']) as double;
+            final isDownloadingThis = _downloadingStudentId == student['studentId'];
+
+            return DataRow(cells: [
+              // Roll No
+              DataCell(
+                Center(
+                  child: Text('$roll',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _C.text1)),
+                ),
+              ),
+              // Student name & Admission No
+              DataCell(SizedBox(
+                width: 120,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(student['name'] as String,
+                        style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: _C.text1),
+                        overflow: TextOverflow.ellipsis),
+                    Text(student['admissionNo'] as String,
+                        style: const TextStyle(fontSize: 9, color: _C.text3)),
+                  ],
+                ),
               )),
               // Subject marks
-              ...(student['subjectMarks'] as List).map((sm) => DataCell(
-                    sm['isAbsent'] == true
-                        ? Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                                color: Colors.red.shade50,
-                                borderRadius: BorderRadius.circular(6)),
-                            child: const Text('AB',
-                                style: TextStyle(
+              ...(student['subjectMarks'] as List).map((sm) {
+                final isAbsent = sm['isAbsent'] == true;
+                final isEntered = sm['isEntered'] == true;
+                final theory = sm['theory'] as int;
+                final teMax = sm['teMax'] as int;
+                final total = sm['total'] as int;
+                final max = sm['max'] as int;
+                final teGrade = sm['teGradeInfo']?['grade'] as String? ?? '-';
+                final totalGrade = sm['totalGradeInfo']?['grade'] as String? ?? '-';
+                final isTeWarning = sm['isTeWarning'] == true;
+
+                if (isAbsent && total == 0) {
+                  return const DataCell(
+                    Center(
+                      child: Text('AB',
+                          style: TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.w800)),
+                    ),
+                  );
+                }
+                if (!isEntered && !isAbsent) {
+                  return const DataCell(
+                    Center(
+                      child: Text('—', style: TextStyle(color: _C.text3, fontSize: 11)),
+                    ),
+                  );
+                }
+
+                if (_marksMode == 'te') {
+                  return DataCell(
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '$theory/$teMax',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: isTeWarning ? FontWeight.w800 : FontWeight.w600,
+                              fontFamily: 'monospace',
+                              color: isTeWarning ? Colors.red.shade600 : _C.text1,
+                            ),
+                          ),
+                          Text(
+                            '$teGrade${isTeWarning ? "*" : ""}',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              color: isTeWarning ? Colors.red.shade600 : _C.text1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                } else if (_marksMode == 'both') {
+                  return DataCell(
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('TE: ', style: TextStyle(fontSize: 9, color: _C.text3)),
+                              if (isAbsent)
+                                const Text('AB', style: TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.w800))
+                              else
+                                Text(
+                                  '$theory ($teGrade)',
+                                  style: TextStyle(
                                     fontSize: 10,
-                                    color: Colors.red,
-                                    fontWeight: FontWeight.w700)))
-                        : sm['isEntered'] == false
-                            ? const Text('—',
-                                style: TextStyle(color: _C.text3, fontSize: 11))
-                            : Text('${sm['total']}/${sm['max']}',
-                                style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    fontFamily: 'monospace')),
-                  )),
+                                    fontWeight: isTeWarning ? FontWeight.w800 : FontWeight.w600,
+                                    fontFamily: 'monospace',
+                                    color: isTeWarning ? Colors.red.shade600 : _C.text2,
+                                  ),
+                                ),
+                            ],
+                          ),
+                          Container(
+                            margin: const EdgeInsets.only(top: 2),
+                            padding: const EdgeInsets.only(top: 2),
+                            decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade100))),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('Tot: ', style: TextStyle(fontSize: 9, color: _C.text3)),
+                                Text(
+                                  '$total ($totalGrade)',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'monospace',
+                                    color: _C.text1,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                } else {
+                  // total mode
+                  return DataCell(
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '$total/$max',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, fontFamily: 'monospace', color: _C.text1),
+                          ),
+                          Text(
+                            totalGrade,
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: _C.text1),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+              }),
               // Total
-              DataCell(Text(
-                  '${student['totalObtained']}/${student['totalMax']}',
-                  style: const TextStyle(
-                      fontSize: 11, fontWeight: FontWeight.w700))),
-              // Percentage
-              DataCell(Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                    color: _C.primary.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(6)),
-                child: Text(
-                    '${(student['percentage'] as double).toStringAsFixed(1)}%',
-                    style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        color: _C.primary)),
-              )),
-              // Grade
-              DataCell(Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                    color: g['bg'] as Color,
-                    borderRadius: BorderRadius.circular(6)),
-                child: Text(g['grade'] as String,
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: g['fg'] as Color)),
-              )),
+              DataCell(
+                Center(
+                  child: _marksMode == 'te'
+                      ? Text('$teObt/$teMax', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'monospace'))
+                      : (_marksMode == 'both'
+                          ? Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text('TE: $teObt/$teMax', style: const TextStyle(fontSize: 10, color: _C.text2, fontFamily: 'monospace')),
+                                Text('Tot: $totObt/$totMax', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'monospace')),
+                              ],
+                            )
+                          : Text('$totObt/$totMax', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, fontFamily: 'monospace'))),
+                ),
+              ),
+              // Percentage (plain text, no badge)
+              DataCell(
+                Center(
+                  child: Text(
+                    '${pct.toStringAsFixed(1)}%',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _C.text1),
+                  ),
+                ),
+              ),
+              // Actions (Marklist PDF download)
+              DataCell(
+                Center(
+                  child: InkWell(
+                    onTap: isDownloadingThis
+                        ? null
+                        : () => _downloadStudentMarklist(student['studentId'].toString(), student['name'].toString()),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      child: isDownloadingThis
+                          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: _C.primary))
+                          : const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.picture_as_pdf_outlined, size: 14, color: _C.primary),
+                                SizedBox(width: 3),
+                                Text('Marklist', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _C.primary)),
+                              ],
+                            ),
+                    ),
+                  ),
+                ),
+              ),
             ]);
           }).toList(),
         ),
@@ -898,10 +1274,10 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
   }
 
   Widget _buildStudentCard(Map<String, dynamic> student) {
-    final g = student['gradeInfo'] as Map<String, dynamic>;
-    final pct = student['percentage'] as double;
-    final subjectMarks =
-        (student['subjectMarks'] as List).cast<Map<String, dynamic>>();
+    final activeGradeInfo = _marksMode == 'te' ? student['teGradeInfo'] : student['gradeInfo'];
+    final pct = (_marksMode == 'te' ? student['tePercentage'] : student['percentage']) as double;
+    final subjectMarks = (student['subjectMarks'] as List).cast<Map<String, dynamic>>();
+    final isDownloadingThis = _downloadingStudentId == student['studentId'];
 
     return Container(
       decoration: BoxDecoration(
@@ -916,7 +1292,7 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
           decoration: BoxDecoration(
             gradient: LinearGradient(colors: [
               _C.primary.withOpacity(0.08),
-              const Color(0xFFD1FAE5)
+              const Color(0xFFD1FAE5),
             ]),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
           ),
@@ -934,33 +1310,55 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
             ),
             const SizedBox(width: 10),
             Expanded(
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(student['name'] as String,
                       style: const TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 14,
                           color: _C.text1)),
-                  Text(student['admissionNo'] as String,
-                      style: const TextStyle(fontSize: 11, color: _C.text3)),
-                ])),
+                  Text(
+                    '${student['admissionNo']} • Roll: ${student['rollNumber'] ?? "-"}',
+                    style: const TextStyle(fontSize: 11, color: _C.text3),
+                  ),
+                ],
+              ),
+            ),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 decoration: BoxDecoration(
-                    color: g['bg'] as Color,
-                    borderRadius: BorderRadius.circular(20)),
-                child: Text(g['grade'] as String,
-                    style: TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                        color: g['fg'] as Color)),
+                  color: activeGradeInfo['bg'] as Color,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  activeGradeInfo['grade'] as String,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    color: activeGradeInfo['fg'] as Color,
+                  ),
+                ),
               ),
               const SizedBox(height: 4),
-              Text('#${student['rank']}  ${pct.toStringAsFixed(1)}%',
-                  style: const TextStyle(fontSize: 11, color: _C.text3)),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if ((student['rank'] as int) <= 3) ...[
+                    Icon(
+                      Icons.emoji_events,
+                      size: 14,
+                      color: student['rank'] == 1
+                          ? Colors.amber.shade700
+                          : (student['rank'] == 2 ? Colors.blueGrey : Colors.brown),
+                    ),
+                    const SizedBox(width: 2),
+                  ],
+                  Text('#${student['rank']}  ${pct.toStringAsFixed(1)}%',
+                      style: const TextStyle(fontSize: 11, color: _C.text3)),
+                ],
+              ),
             ]),
           ]),
         ),
@@ -985,73 +1383,155 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
           child: Column(
-              children: subjectMarks.map((sm) {
-            final sg = _gradeInfo(sm['total'] as int, sm['max'] as int);
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 3),
-              child: Row(children: [
-                Expanded(
-                    child: Text(sm['name'] as String,
+            children: subjectMarks.map((sm) {
+              final isAbsent = sm['isAbsent'] == true;
+              final isEntered = sm['isEntered'] == true;
+              final theory = sm['theory'] as int;
+              final teMax = sm['teMax'] as int;
+              final total = sm['total'] as int;
+              final max = sm['max'] as int;
+              final teGrade = sm['teGradeInfo']?['grade'] as String? ?? '-';
+              final totalGrade = sm['totalGradeInfo']?['grade'] as String? ?? '-';
+              final isTeWarning = sm['isTeWarning'] == true;
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3.5),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        sm['name'] as String,
                         style: const TextStyle(fontSize: 12, color: _C.text2),
-                        overflow: TextOverflow.ellipsis)),
-                sm['isAbsent'] == true
-                    ? Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (isAbsent && total == 0)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                         decoration: BoxDecoration(
-                            color: Colors.red.shade50,
-                            borderRadius: BorderRadius.circular(6)),
-                        child: const Text('AB',
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text('AB', style: TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.w700)),
+                      )
+                    else if (!isEntered && !isAbsent)
+                      const Text('—', style: TextStyle(color: _C.text3, fontSize: 12))
+                    else if (_marksMode == 'te')
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '$theory/$teMax',
                             style: TextStyle(
-                                fontSize: 10,
-                                color: Colors.red,
-                                fontWeight: FontWeight.w700)))
-                    : sm['isEntered'] == false
-                        ? const Text('—',
-                            style: TextStyle(color: _C.text3, fontSize: 12))
-                        : Row(mainAxisSize: MainAxisSize.min, children: [
-                            Text('${sm['total']}/${sm['max']}',
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: _C.text1)),
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 6, vertical: 1),
-                              decoration: BoxDecoration(
-                                  color: sg['bg'] as Color,
-                                  borderRadius: BorderRadius.circular(4)),
-                              child: Text(sg['grade'] as String,
-                                  style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700,
-                                      color: sg['fg'] as Color)),
+                              fontSize: 12,
+                              fontWeight: isTeWarning ? FontWeight.w800 : FontWeight.w600,
+                              fontFamily: 'monospace',
+                              color: isTeWarning ? Colors.red.shade600 : _C.text1,
                             ),
-                          ]),
-              ]),
-            );
-          }).toList()),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            '$teGrade${isTeWarning ? "*" : ""}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: isTeWarning ? Colors.red.shade600 : _C.text1,
+                            ),
+                          ),
+                        ],
+                      )
+                    else if (_marksMode == 'both')
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            isAbsent ? 'AB' : '$theory ($teGrade)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontFamily: 'monospace',
+                              color: isTeWarning ? Colors.red.shade600 : _C.text2,
+                            ),
+                          ),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 4),
+                            child: Text('|', style: TextStyle(fontSize: 10, color: _C.text3)),
+                          ),
+                          Text(
+                            '$total ($totalGrade)',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, fontFamily: 'monospace', color: _C.text1),
+                          ),
+                        ],
+                      )
+                    else
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '$total/$max',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, fontFamily: 'monospace', color: _C.text1),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            totalGrade,
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: _C.text1),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
         ),
-        // Footer total
+        // Footer total & Marklist download
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             color: const Color(0xFFF8FAFC),
-            borderRadius:
-                const BorderRadius.vertical(bottom: Radius.circular(14)),
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)),
             border: Border(top: BorderSide(color: Colors.grey.shade100)),
           ),
-          child:
-              Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('Total',
-                style: TextStyle(fontSize: 12, color: _C.text2)),
-            Text('${student['totalObtained']}/${student['totalMax']}',
-                style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    color: _C.text1)),
-          ]),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _marksMode == 'te' ? 'TE Total' : (_marksMode == 'both' ? 'Tot (TE|Tot)' : 'Total'),
+                    style: const TextStyle(fontSize: 10, color: _C.text3),
+                  ),
+                  Text(
+                    _marksMode == 'te'
+                        ? '${student['teTotalObtained']}/${student['teTotalMax']}'
+                        : (_marksMode == 'both'
+                            ? '${student['teTotalObtained']}/${student['teTotalMax']} | ${student['totalObtained']}/${student['totalMax']}'
+                            : '${student['totalObtained']}/${student['totalMax']}'),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, fontFamily: 'monospace', color: _C.text1),
+                  ),
+                ],
+              ),
+              InkWell(
+                onTap: isDownloadingThis
+                    ? null
+                    : () => _downloadStudentMarklist(student['studentId'].toString(), student['name'].toString()),
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  child: isDownloadingThis
+                      ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: _C.primary))
+                      : const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.picture_as_pdf_outlined, size: 14, color: _C.primary),
+                            SizedBox(width: 4),
+                            Text('Marklist', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: _C.primary)),
+                          ],
+                        ),
+                ),
+              ),
+            ],
+          ),
         ),
       ]),
     );
