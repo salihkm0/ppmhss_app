@@ -75,4 +75,5 @@ class ApiConfig {
 
   // Analytics
   static const String analyticsGradeAnalysis = '/analytics/grade-analysis';
+  static const String analyticsAttendance = '/analytics/attendance';
 }

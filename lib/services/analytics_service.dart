@@ -15,4 +15,20 @@ class AnalyticsService {
     final response = await _api.get(ApiConfig.analyticsGradeAnalysis, params: params);
     return response.data;
   }
+
+  Future<Map<String, dynamic>> getAttendanceAnalytics({
+    String? classId,
+    int? month,
+    int? year,
+    String? academicYearId,
+  }) async {
+    final params = <String, dynamic>{
+      if (classId != null && classId.isNotEmpty) 'classId': classId,
+      if (month != null) 'month': month.toString(),
+      if (year != null) 'year': year.toString(),
+      if (academicYearId != null && academicYearId.isNotEmpty) 'academicYearId': academicYearId,
+    };
+    final response = await _api.get(ApiConfig.analyticsAttendance, params: params);
+    return response.data;
+  }
 }
