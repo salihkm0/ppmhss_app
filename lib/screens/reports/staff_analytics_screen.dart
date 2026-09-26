@@ -53,6 +53,9 @@ class _StaffAnalyticsScreenState extends State<StaffAnalyticsScreen>
   String _rankMode = 'TE'; // 'TE' (excl. WE/PE/Drawing) or 'TE_CE'
   String _rankSearchQuery = '';
   String _rankGradeFilter = 'ALL';
+  String _rankMarkRangePreset = 'ALL'; // 'ALL', '<=150', '100-500', '150-300', '300-500', '>=450', 'CUSTOM'
+  final TextEditingController _rankMinMarkController = TextEditingController();
+  final TextEditingController _rankMaxMarkController = TextEditingController();
   int _rankDisplayLimit = 25;
   bool _isRankExporting = false;
   final TextEditingController _rankSearchController = TextEditingController();
@@ -99,6 +102,8 @@ class _StaffAnalyticsScreenState extends State<StaffAnalyticsScreen>
   void dispose() {
     _mainTabController.dispose();
     _rankSearchController.dispose();
+    _rankMinMarkController.dispose();
+    _rankMaxMarkController.dispose();
     super.dispose();
   }
 
@@ -776,6 +781,29 @@ class _StaffAnalyticsScreenState extends State<StaffAnalyticsScreen>
         }
       }
 
+      // Mark range filter
+      final teMarks = (student['rankTeTotal'] ?? student['totalTheoryMarks'] ?? 0) as num;
+      final totalMarks = (student['rankTotalObtained'] ?? student['totalMarks'] ?? 0) as num;
+      final activeMarks = _rankMode == 'TE' ? teMarks : totalMarks;
+
+      if (_rankMarkRangePreset == '<=150' && activeMarks > 150) return false;
+      if (_rankMarkRangePreset == '100-500' && (activeMarks < 100 || activeMarks > 500)) return false;
+      if (_rankMarkRangePreset == '150-300' && (activeMarks < 150 || activeMarks > 300)) return false;
+      if (_rankMarkRangePreset == '300-500' && (activeMarks < 300 || activeMarks > 500)) return false;
+      if (_rankMarkRangePreset == '>=450' && activeMarks < 450) return false;
+      if (_rankMarkRangePreset == 'CUSTOM') {
+        final minTxt = _rankMinMarkController.text.trim();
+        final maxTxt = _rankMaxMarkController.text.trim();
+        if (minTxt.isNotEmpty) {
+          final minVal = num.tryParse(minTxt);
+          if (minVal != null && activeMarks < minVal) return false;
+        }
+        if (maxTxt.isNotEmpty) {
+          final maxVal = num.tryParse(maxTxt);
+          if (maxVal != null && activeMarks > maxVal) return false;
+        }
+      }
+
       return true;
     }).toList();
   }
@@ -1097,6 +1125,100 @@ class _StaffAnalyticsScreenState extends State<StaffAnalyticsScreen>
                   ),
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Mark Range Filter Row
+          Row(
+            children: [
+              Container(
+                height: 38,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Marks: ', style: TextStyle(fontSize: 11.5, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                    DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: _rankMarkRangePreset,
+                        icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Color(0xFF64748B)),
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF0F172A), fontWeight: FontWeight.w600),
+                        onChanged: (v) => setState(() => _rankMarkRangePreset = v ?? 'ALL'),
+                        items: const [
+                          DropdownMenuItem(value: 'ALL', child: Text('All Marks')),
+                          DropdownMenuItem(value: '<=150', child: Text('≤ 150 Marks')),
+                          DropdownMenuItem(value: '100-500', child: Text('100 - 500 Marks')),
+                          DropdownMenuItem(value: '150-300', child: Text('150 - 300 Marks')),
+                          DropdownMenuItem(value: '300-500', child: Text('300 - 500 Marks')),
+                          DropdownMenuItem(value: '>=450', child: Text('≥ 450 Marks')),
+                          DropdownMenuItem(value: 'CUSTOM', child: Text('Custom Range...')),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (_rankMarkRangePreset == 'CUSTOM') ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    height: 38,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: TextField(
+                      controller: _rankMinMarkController,
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(fontSize: 12),
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        hintText: 'Min',
+                        hintStyle: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 10),
+                      ),
+                    ),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4),
+                  child: Text('-', style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8))),
+                ),
+                Expanded(
+                  child: Container(
+                    height: 38,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: TextField(
+                      controller: _rankMaxMarkController,
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(fontSize: 12),
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        hintText: 'Max',
+                        hintStyle: TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 10),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 12),

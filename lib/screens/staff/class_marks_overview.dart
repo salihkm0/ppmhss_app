@@ -113,6 +113,7 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
   final _searchCtrl = TextEditingController();
   String _marksMode = 'total'; // 'total' | 'te' | 'both'
   String _sortBy = 'rollNo'; // 'rollNo' | 'rank' | 'name' | 'percentage'
+  String _markRangeFilter = 'all'; // 'all', '<=150', '100-500', '150-300', '300-450', '>=450'
   String? _downloadingStudentId;
 
   @override
@@ -583,12 +584,23 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
 
   List<Map<String, dynamic>> get _filtered {
     final q = _search.toLowerCase();
-    return _studentRows
-        .where((s) =>
-            (s['name'] as String).toLowerCase().contains(q) ||
-            (s['admissionNo'] as String).toLowerCase().contains(q) ||
-            (s['rollNumber'] != null && s['rollNumber'].toString().toLowerCase().contains(q)))
-        .toList();
+    return _studentRows.where((s) {
+      final name = (s['name'] as String? ?? '').toLowerCase();
+      final adm = (s['admissionNo'] as String? ?? '').toLowerCase();
+      final roll = (s['rollNumber'] != null ? s['rollNumber'].toString().toLowerCase() : '');
+      if (q.isNotEmpty && !name.contains(q) && !adm.contains(q) && !roll.contains(q)) {
+        return false;
+      }
+
+      final activeMarks = _marksMode == 'te' ? (s['teTotalObtained'] as num? ?? 0) : (s['totalObtained'] as num? ?? 0);
+      if (_markRangeFilter == '<=150' && activeMarks > 150) return false;
+      if (_markRangeFilter == '100-500' && (activeMarks < 100 || activeMarks > 500)) return false;
+      if (_markRangeFilter == '150-300' && (activeMarks < 150 || activeMarks > 300)) return false;
+      if (_markRangeFilter == '300-450' && (activeMarks < 300 || activeMarks > 450)) return false;
+      if (_markRangeFilter == '>=450' && activeMarks < 450) return false;
+
+      return true;
+    }).toList();
   }
 
   @override
@@ -1047,6 +1059,49 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          // Mark Range Quick Filter Chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                const Text('Marks: ', style: TextStyle(fontSize: 11, color: _C.text2, fontWeight: FontWeight.w600)),
+                ...[
+                  {'label': 'All', 'value': 'all'},
+                  {'label': '≤ 150', 'value': '<=150'},
+                  {'label': '100 - 500', 'value': '100-500'},
+                  {'label': '150 - 300', 'value': '150-300'},
+                  {'label': '300 - 450', 'value': '300-450'},
+                  {'label': '≥ 450', 'value': '>=450'},
+                ].map((item) {
+                  final isSel = _markRangeFilter == item['value'];
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: InkWell(
+                      onTap: () => setState(() => _markRangeFilter = item['value']!),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                        decoration: BoxDecoration(
+                          color: isSel ? _C.primary : Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: isSel ? _C.primary : const Color(0xFFE2E8F0)),
+                        ),
+                        child: Text(
+                          item['label']!,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                            color: isSel ? Colors.white : _C.text2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
           ),
         ],
       ),
