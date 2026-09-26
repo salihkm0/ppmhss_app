@@ -78,10 +78,12 @@ class _MarkService {
     required String examId,
     required String classId,
     String? subjectId,
+    String? subjectName,
   }) async {
     _api.invalidateCache('/marks');
     final payload = <String, dynamic>{'examId': examId, 'classId': classId};
     if (subjectId != null) payload['subjectId'] = subjectId;
+    if (subjectName != null) payload['subjectName'] = subjectName;
     await _api.post('/marks/revert-draft', data: payload);
   }
 
@@ -925,7 +927,7 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
     try {
       final token = ApiService().getToken();
       final endpoint = isExcel
-          ? '/pdf/report-card/class-marks/excel/${widget.classId}/$examId'
+          ? '/pdf/report-card/class-marks/excel/${widget.classId}/$examId?mode=both'
           : '/pdf/report-card/class-marks/download/${widget.classId}/$examId';
 
       final response = await Dio().get<List<int>>(

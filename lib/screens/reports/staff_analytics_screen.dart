@@ -1,3 +1,11 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:dio/dio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:school_management/config/api_config.dart';
+import 'package:school_management/services/api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_redux/flutter_redux.dart';
 import 'package:school_management/store/app_state.dart';
@@ -41,6 +49,14 @@ class _StaffAnalyticsScreenState extends State<StaffAnalyticsScreen>
   String? _errorMessage;
   Map<String, dynamic>? _analyticsData;
 
+  // Student Rank List state
+  String _rankMode = 'TE'; // 'TE' (excl. WE/PE/Drawing) or 'TE_CE'
+  String _rankSearchQuery = '';
+  String _rankGradeFilter = 'ALL';
+  int _rankDisplayLimit = 25;
+  bool _isRankExporting = false;
+  final TextEditingController _rankSearchController = TextEditingController();
+
   // Attendance Analytics state
   String? _selectedAttendanceClassId;
   int? _selectedAttendanceMonth; // null = all months
@@ -82,6 +98,7 @@ class _StaffAnalyticsScreenState extends State<StaffAnalyticsScreen>
   @override
   void dispose() {
     _mainTabController.dispose();
+    _rankSearchController.dispose();
     super.dispose();
   }
 
@@ -308,6 +325,8 @@ class _StaffAnalyticsScreenState extends State<StaffAnalyticsScreen>
               _buildSubjectWiseGradeDistributionCard(),
               const SizedBox(height: 16),
               _buildStudentBreakdownTabs(),
+              const SizedBox(height: 16),
+              _buildStudentRankListCard(),
             ],
           ],
         ),
@@ -585,9 +604,11 @@ class _StaffAnalyticsScreenState extends State<StaffAnalyticsScreen>
     final analysis = _analyticsData?['analysis'] ?? {};
     final List fullAPlusList = analysis['fullAPlus'] ?? [];
     final List nineAPlusList = analysis['nineAPlus'] ?? [];
+    final List eightAPlusList = analysis['eightAPlus'] ?? [];
+    final List sevenAPlusList = analysis['sevenAPlus'] ?? [];
 
     return DefaultTabController(
-      length: 2,
+      length: 4,
       child: Column(
         children: [
           Container(
@@ -595,14 +616,17 @@ class _StaffAnalyticsScreenState extends State<StaffAnalyticsScreen>
               color: const Color(0xFFE2E8F0),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const TabBar(
+            child: TabBar(
               indicatorColor: Colors.transparent,
-              labelColor: Color(0xFF059669),
-              unselectedLabelColor: Colors.grey,
-              labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              labelColor: const Color(0xFF059669),
+              unselectedLabelColor: Colors.grey[700],
+              labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              isScrollable: true,
               tabs: [
-                Tab(text: 'Full A+ Students'),
-                Tab(text: 'Near Full A+'),
+                Tab(text: 'Full A+ (${fullAPlusList.length})'),
+                Tab(text: '9 A+ (${nineAPlusList.length})'),
+                Tab(text: '8 A+ (${eightAPlusList.length})'),
+                Tab(text: '7 A+ (${sevenAPlusList.length})'),
               ],
             ),
           ),
@@ -611,8 +635,10 @@ class _StaffAnalyticsScreenState extends State<StaffAnalyticsScreen>
             height: 320,
             child: TabBarView(
               children: [
-                _buildStudentList(fullAPlusList, isFullA: true),
-                _buildStudentList(nineAPlusList, isFullA: false),
+                _buildStudentList(fullAPlusList, categoryLabel: 'Full A+'),
+                _buildStudentList(nineAPlusList, categoryLabel: '9 A+'),
+                _buildStudentList(eightAPlusList, categoryLabel: '8 A+'),
+                _buildStudentList(sevenAPlusList, categoryLabel: '7 A+'),
               ],
             ),
           ),
@@ -621,11 +647,12 @@ class _StaffAnalyticsScreenState extends State<StaffAnalyticsScreen>
     );
   }
 
-  Widget _buildStudentList(List list, {required bool isFullA}) {
+  Widget _buildStudentList(List list, {required String categoryLabel}) {
+    final isFullA = categoryLabel == 'Full A+';
     if (list.isEmpty) {
       return Center(
         child: Text(
-          isFullA ? 'No Full A+ students' : 'No Near Full A+ students',
+          'No $categoryLabel students',
           style: const TextStyle(color: Colors.grey, fontSize: 13),
         ),
       );
@@ -688,7 +715,7 @@ class _StaffAnalyticsScreenState extends State<StaffAnalyticsScreen>
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  isFullA ? 'Full A+' : '9 A+',
+                  categoryLabel,
                   style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -696,6 +723,698 @@ class _StaffAnalyticsScreenState extends State<StaffAnalyticsScreen>
           ),
         );
       },
+    );
+  }
+
+  // ===========================================================================
+  // STUDENT RANK LIST CARD
+  // ===========================================================================
+
+  List get _filteredRankStudents {
+    final list = (_analyticsData?['studentResults'] as List? ?? []).toList();
+
+    // Sort by selected rankMode
+    list.sort((a, b) {
+      if (_rankMode == 'TE') {
+        final aR = (a['teRank'] as num?)?.toInt() ?? 999999;
+        final bR = (b['teRank'] as num?)?.toInt() ?? 999999;
+        if (aR != bR) return aR.compareTo(bR);
+        final aPct = (a['rankTePercentage'] as num?)?.toDouble() ?? 0.0;
+        final bPct = (b['rankTePercentage'] as num?)?.toDouble() ?? 0.0;
+        return bPct.compareTo(aPct);
+      } else {
+        final aR = (a['teCeRank'] as num?)?.toInt() ?? (a['rank'] as num?)?.toInt() ?? 999999;
+        final bR = (b['teCeRank'] as num?)?.toInt() ?? (b['rank'] as num?)?.toInt() ?? 999999;
+        if (aR != bR) return aR.compareTo(bR);
+        final aPct = (a['rankTotalPercentage'] as num?)?.toDouble() ?? (a['percentage'] as num?)?.toDouble() ?? 0.0;
+        final bPct = (b['rankTotalPercentage'] as num?)?.toDouble() ?? (b['percentage'] as num?)?.toDouble() ?? 0.0;
+        return bPct.compareTo(aPct);
+      }
+    });
+
+    return list.where((student) {
+      final name = (student['studentName'] ?? student['fullName'] ?? student['name'] ?? '').toString().toLowerCase();
+      final roll = (student['rollNumber'] ?? student['rollNo'] ?? '').toString().toLowerCase();
+      final adm = (student['admissionNumber'] ?? student['studentCode'] ?? student['admissionNo'] ?? '').toString().toLowerCase();
+      final cls = (student['className'] ?? '').toString().toLowerCase();
+
+      // Search query filter
+      if (_rankSearchQuery.trim().isNotEmpty) {
+        final q = _rankSearchQuery.trim().toLowerCase();
+        if (!name.contains(q) && !roll.contains(q) && !adm.contains(q) && !cls.contains(q)) {
+          return false;
+        }
+      }
+
+      // Grade filter
+      if (_rankGradeFilter != 'ALL') {
+        final tePct = (student['rankTePercentage'] as num?)?.toDouble() ?? 0.0;
+        final totalPct = (student['rankTotalPercentage'] as num?)?.toDouble() ?? (student['percentage'] as num?)?.toDouble() ?? 0.0;
+        final gr = _getGradeFromPercentage(_rankMode == 'TE' ? tePct : totalPct);
+        if (gr != _rankGradeFilter) {
+          return false;
+        }
+      }
+
+      return true;
+    }).toList();
+  }
+
+  String _getGradeFromPercentage(double pct) {
+    if (pct >= 90) return 'A+';
+    if (pct >= 80) return 'A';
+    if (pct >= 70) return 'B+';
+    if (pct >= 60) return 'B';
+    if (pct >= 50) return 'C+';
+    if (pct >= 40) return 'C';
+    if (pct >= 30) return 'D+';
+    if (pct >= 20) return 'D';
+    return 'E';
+  }
+
+  Future<void> _exportRankList({required bool isExcel}) async {
+    final examId = _selectedExamId;
+    final classId = _selectedClassId;
+    if (examId == null || examId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select an exam first'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+    if (classId == null || classId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a specific class to export the rank list'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    setState(() => _isRankExporting = true);
+    try {
+      final token = ApiService().getToken();
+      final effectiveMode = isExcel ? 'both' : (_rankMode == 'TE' ? 'te' : 'total');
+      final endpoint = isExcel
+          ? '/pdf/report-card/class-marks/excel/$classId/$examId?mode=$effectiveMode&sortBy=rank'
+          : '/pdf/report-card/class-marks/download/$classId/$examId?mode=$effectiveMode&sortBy=rank';
+
+      final response = await Dio().get<List<int>>(
+        '${ApiConfig.baseUrl}$endpoint',
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {'Authorization': 'Bearer $token'},
+        ),
+      );
+
+      if (response.data == null || response.data!.isEmpty) {
+        throw 'Empty file response received';
+      }
+
+      final bytes = Uint8List.fromList(response.data!);
+      final ext = isExcel ? 'xlsx' : 'pdf';
+      final fileName = 'Rank_List_${classId}_$examId.$ext';
+
+      if (isExcel) {
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/$fileName');
+        await file.writeAsBytes(bytes);
+        await Share.shareXFiles([XFile(file.path)], text: 'Student Rank List Excel (All Subjects CE & TE)');
+      } else {
+        await Printing.sharePdf(bytes: bytes, filename: fileName);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to export: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isRankExporting = false);
+    }
+  }
+
+  Widget _buildStudentRankListCard() {
+    final allStudents = (_analyticsData?['studentResults'] as List? ?? []);
+    if (allStudents.isEmpty) return const SizedBox.shrink();
+
+    final filtered = _filteredRankStudents;
+    final isTE = _rankMode == 'TE';
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isTE
+                        ? [const Color(0xFF2563EB), const Color(0xFF1D4ED8)]
+                        : [const Color(0xFF0D9488), const Color(0xFF0F766E)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: (isTE ? const Color(0xFF2563EB) : const Color(0xFF0D9488)).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.emoji_events_rounded, color: Colors.white, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Text(
+                          'Student Rank List',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            color: Color(0xFF0F172A),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: isTE ? const Color(0xFFEFF6FF) : const Color(0xFFF0FDFA),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isTE ? const Color(0xFFBFDBFE) : const Color(0xFF99F6E4),
+                            ),
+                          ),
+                          child: Text(
+                            isTE ? 'TE Rank' : 'TE + CE',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: isTE ? const Color(0xFF1D4ED8) : const Color(0xFF0F766E),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isTE
+                          ? 'Sorted by TE marks (excl. WE / PE / Drawing)'
+                          : 'Sorted by TE + CE marks (excl. WE / PE / Drawing)',
+                      style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Rank Mode Selector Pills
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _rankMode = 'TE'),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isTE ? const Color(0xFF2563EB) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: isTE
+                            ? [
+                                BoxShadow(
+                                  color: const Color(0xFF2563EB).withOpacity(0.3),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                )
+                              ]
+                            : null,
+                      ),
+                      child: Center(
+                        child: Text(
+                          '🎯 TE Only Rank (Default)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isTE ? Colors.white : const Color(0xFF475569),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => setState(() => _rankMode = 'TE_CE'),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: !isTE ? const Color(0xFF0D9488) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: !isTE
+                            ? [
+                                BoxShadow(
+                                  color: const Color(0xFF0D9488).withOpacity(0.3),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                )
+                              ]
+                            : null,
+                      ),
+                      child: Center(
+                        child: Text(
+                          '🏅 TE + CE Rank',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: !isTE ? Colors.white : const Color(0xFF475569),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Search & Filter Row
+          Row(
+            children: [
+              // Search input
+              Expanded(
+                child: Container(
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAFC),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: TextField(
+                    controller: _rankSearchController,
+                    onChanged: (v) => setState(() => _rankSearchQuery = v),
+                    style: const TextStyle(fontSize: 13),
+                    decoration: InputDecoration(
+                      hintText: 'Search student, roll, adm...',
+                      hintStyle: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                      prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFF94A3B8)),
+                      suffixIcon: _rankSearchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear_rounded, size: 16, color: Color(0xFF94A3B8)),
+                              onPressed: () {
+                                _rankSearchController.clear();
+                                setState(() => _rankSearchQuery = '');
+                              },
+                            )
+                          : null,
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+
+              // Grade filter dropdown
+              Container(
+                height: 40,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _rankGradeFilter,
+                    icon: const Icon(Icons.filter_list_rounded, size: 16, color: Color(0xFF64748B)),
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF0F172A), fontWeight: FontWeight.w600),
+                    onChanged: (v) => setState(() => _rankGradeFilter = v ?? 'ALL'),
+                    items: const [
+                      DropdownMenuItem(value: 'ALL', child: Text('All Grades')),
+                      DropdownMenuItem(value: 'A+', child: Text('A+ Only')),
+                      DropdownMenuItem(value: 'A', child: Text('A Only')),
+                      DropdownMenuItem(value: 'B+', child: Text('B+ Only')),
+                      DropdownMenuItem(value: 'B', child: Text('B Only')),
+                      DropdownMenuItem(value: 'C+', child: Text('C+ Only')),
+                      DropdownMenuItem(value: 'C', child: Text('C Only')),
+                      DropdownMenuItem(value: 'D+', child: Text('D+ Only')),
+                      DropdownMenuItem(value: 'D', child: Text('D Only')),
+                      DropdownMenuItem(value: 'E', child: Text('E Only')),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Count chips & Export buttons bar
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Display limit selector
+              Row(
+                children: [
+                  const Text('Show: ', style: TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w600)),
+                  ...[10, 25, 50, 999999].map((cnt) {
+                    final isSel = _rankDisplayLimit == cnt;
+                    final label = cnt == 999999 ? 'All' : '$cnt';
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: InkWell(
+                        onTap: () => setState(() => _rankDisplayLimit = cnt),
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: isSel ? const Color(0xFF2563EB) : const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: isSel ? FontWeight.bold : FontWeight.w500,
+                              color: isSel ? Colors.white : const Color(0xFF475569),
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+
+              // Export Buttons (Excel & PDF)
+              Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _isRankExporting ? null : () => _exportRankList(isExcel: true),
+                    icon: const Icon(Icons.table_view_rounded, size: 14, color: Color(0xFF059669)),
+                    label: const Text('Excel', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF059669))),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      minimumSize: const Size(0, 30),
+                      side: const BorderSide(color: Color(0xFFA7F3D0)),
+                      backgroundColor: const Color(0xFFF0FDF4),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  OutlinedButton.icon(
+                    onPressed: _isRankExporting ? null : () => _exportRankList(isExcel: false),
+                    icon: const Icon(Icons.picture_as_pdf_rounded, size: 14, color: Color(0xFFDC2626)),
+                    label: const Text('PDF', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFDC2626))),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      minimumSize: const Size(0, 30),
+                      side: const BorderSide(color: Color(0xFFFECACA)),
+                      backgroundColor: const Color(0xFFFEF2F2),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Count summary indicator
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Showing ${filtered.take(_rankDisplayLimit).length} of ${filtered.length} students',
+                style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w500),
+              ),
+              if (_isRankExporting)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Students List
+          if (filtered.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 30),
+              child: Center(
+                child: Text('No students match the selected filter', style: TextStyle(color: Colors.grey, fontSize: 13)),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: filtered.take(_rankDisplayLimit).length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, idx) {
+                final student = filtered[idx];
+                return _buildRankStudentCard(student, idx);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRankStudentCard(dynamic student, int index) {
+    final isTE = _rankMode == 'TE';
+    final teRank = (student['teRank'] as num?)?.toInt() ?? (index + 1);
+    final teCeRank = (student['teCeRank'] as num?)?.toInt() ?? (student['rank'] as num?)?.toInt() ?? (index + 1);
+    final rank = isTE ? teRank : teCeRank;
+
+    final name = (student['studentName'] ?? student['fullName'] ?? student['name'] ?? '-').toString();
+    final roll = (student['rollNumber'] ?? student['rollNo'] ?? '-').toString();
+    final adm = (student['admissionNumber'] ?? student['studentCode'] ?? student['admissionNo'] ?? '-').toString();
+    final cls = (student['className'] ?? '').toString();
+
+    final teMarks = student['rankTeTotal'] ?? student['totalTheoryMarks'] ?? 0;
+    final teMax = student['rankTeMax'] ?? 0;
+    final tePct = (student['rankTePercentage'] as num?)?.toDouble() ?? 0.0;
+
+    final ceMarks = student['rankCeTotal'] ?? (
+      student['rankTotalObtained'] != null && student['rankTeTotal'] != null
+        ? (student['rankTotalObtained'] as num).toInt() - (student['rankTeTotal'] as num).toInt()
+        : (student['totalCeMarks'] ?? 0)
+    );
+
+    final totalMarks = student['rankTotalObtained'] ?? student['totalMarks'] ?? 0;
+    final totalMax = student['rankTotalMax'] ?? student['totalMaxMarks'] ?? 0;
+    final totalPct = (student['rankTotalPercentage'] as num?)?.toDouble() ?? (student['percentage'] as num?)?.toDouble() ?? 0.0;
+
+    final activePct = isTE ? tePct : totalPct;
+    final activeGrade = _getGradeFromPercentage(activePct);
+    final gradeColor = _getGradeColor(activeGrade);
+
+    final aplus = student['academicAplusCount'] ?? student['aplusCount'] ?? 0;
+    final totalSubs = student['academicTotalSubjects'] ?? student['totalSubjects'] ?? 0;
+    final isPassed = activePct >= 40.0;
+
+    // Rank badge decoration
+    Color rankBg;
+    Color rankFg;
+    IconData? rankIcon;
+
+    if (rank == 1) {
+      rankBg = const Color(0xFFFEF3C7);
+      rankFg = const Color(0xFFB45309);
+      rankIcon = Icons.emoji_events_rounded;
+    } else if (rank == 2) {
+      rankBg = const Color(0xFFF1F5F9);
+      rankFg = const Color(0xFF475569);
+      rankIcon = Icons.military_tech_rounded;
+    } else if (rank == 3) {
+      rankBg = const Color(0xFFFFEDD5);
+      rankFg = const Color(0xFFC2410C);
+      rankIcon = Icons.workspace_premium_rounded;
+    } else {
+      rankBg = const Color(0xFFF8FAFC);
+      rankFg = const Color(0xFF64748B);
+      rankIcon = null;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: rank <= 3
+              ? (rank == 1 ? const Color(0xFFFDE68A) : (rank == 2 ? const Color(0xFFCBD5E1) : const Color(0xFFFED7AA)))
+              : const Color(0xFFE2E8F0),
+          width: rank <= 3 ? 1.5 : 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Rank badge
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: rankBg,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: rankFg.withOpacity(0.3)),
+                ),
+                child: Center(
+                  child: rankIcon != null
+                      ? Icon(rankIcon, size: 20, color: rankFg)
+                      : Text(
+                          '#$rank',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            color: rankFg,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(width: 10),
+
+              // Name & sub-info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            name,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: Color(0xFF0F172A)),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (rank <= 3) ...[
+                          const SizedBox(width: 4),
+                          Text(
+                            '#$rank',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: rankFg),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Roll: $roll  •  Adm: $adm${cls.isNotEmpty ? '  •  $cls' : ''}',
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+
+              // Grade badge & Pass/Fail status
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                    decoration: BoxDecoration(
+                      color: gradeColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: gradeColor.withOpacity(0.3)),
+                    ),
+                    child: Text(
+                      activeGrade,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: gradeColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    isPassed ? 'Passed' : 'Failed',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: isPassed ? const Color(0xFF16A34A) : const Color(0xFFDC2626),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Marks strip
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFEEF2F6)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _rankMetric('TE Score', '$teMarks${teMax > 0 ? '/$teMax' : ''}', '${tePct.toStringAsFixed(1)}%'),
+                Container(width: 1, height: 24, color: const Color(0xFFCBD5E1)),
+                _rankMetric('CE Marks', '$ceMarks', 'Internal'),
+                Container(width: 1, height: 24, color: const Color(0xFFCBD5E1)),
+                _rankMetric('Total', '$totalMarks${totalMax > 0 ? '/$totalMax' : ''}', '${totalPct.toStringAsFixed(1)}%'),
+                Container(width: 1, height: 24, color: const Color(0xFFCBD5E1)),
+                _rankMetric('A+ Count', '$aplus${totalSubs > 0 ? '/$totalSubs' : ''}', 'Academic'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _rankMetric(String label, String value, String sub) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w500)),
+        const SizedBox(height: 1),
+        Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0F172A))),
+        Text(sub, style: const TextStyle(fontSize: 9.5, color: Color(0xFF94A3B8))),
+      ],
     );
   }
 

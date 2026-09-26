@@ -205,8 +205,31 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
     setState(() => _loading = false);
   }
 
+  bool _isNonTeSubject(Map<String, dynamic> subj) {
+    final code = (subj['subjectCode'] ?? subj['code'] ?? '').toString().toUpperCase().trim();
+    final name = (subj['subjectName'] ?? subj['name'] ?? subj['displayName'] ?? '').toString().toLowerCase().trim();
+    if (['WE', 'PE', 'DR', 'ART', 'SEWA'].contains(code)) return true;
+    if (name.contains('work exp') ||
+        name.contains('physical ed') ||
+        name.contains('drawing') ||
+        name.contains('art education')) {
+      return true;
+    }
+    final teMax = (subj['termMaxMarks'] ?? subj['theoryMaxMarks'] ?? 0) as num;
+    final max = (subj['maxMarks'] ?? 0) as num;
+    final ceMax = (subj['ceMaxMarks'] ?? 0) as num;
+    if (teMax == 0 && (max > 0 || ceMax > 0)) {
+      return true;
+    }
+    return false;
+  }
+
   List<Map<String, dynamic>> get _subjects {
-    return (_data?['subjects'] as List? ?? []).cast<Map<String, dynamic>>();
+    final list = (_data?['subjects'] as List? ?? []).cast<Map<String, dynamic>>();
+    if (_marksMode == 'te') {
+      return list.where((s) => !_isNonTeSubject(s)).toList();
+    }
+    return list;
   }
 
   int _getSubjectTeMax(Map<String, dynamic> subj) {
@@ -274,12 +297,15 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
 
         final int teMax = ((sm['termMaxMarks'] ?? sm['theoryMaxMarks']) as num?)?.toInt() ?? _getSubjectTeMax(subj);
         final int max = (sm['maxMarks'] as num?)?.toInt() ?? _getSubjectTotalMax(subj);
+        final isNonTe = _isNonTeSubject(subj);
 
         if (isEntered || (isAbsent && ce > 0)) {
           totalObtained += total;
           totalMax += max;
-          teTotalObtained += theory;
-          teTotalMax += teMax;
+          if (!isNonTe) {
+            teTotalObtained += theory;
+            teTotalMax += teMax;
+          }
         }
 
         final teGradeInfo = _gradeInfo(theory, teMax);
@@ -396,8 +422,9 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
     if (mounted) setState(() => _isDownloading = true);
     try {
       final token = ApiService().getToken();
+      final effectiveMode = isExcel ? (_marksMode == 'te' ? 'te' : 'both') : _marksMode;
       final endpoint = isExcel
-          ? '/pdf/report-card/class-marks/excel/$classId/$examId?mode=$_marksMode&sortBy=$_sortBy'
+          ? '/pdf/report-card/class-marks/excel/$classId/$examId?mode=$effectiveMode&sortBy=$_sortBy'
           : '/pdf/report-card/class-marks/download/$classId/$examId?mode=$_marksMode&sortBy=$_sortBy';
 
       final response = await Dio().get<List<int>>(
