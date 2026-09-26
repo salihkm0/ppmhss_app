@@ -96,12 +96,17 @@ class _StaffAttendancePageState extends State<StaffAttendancePage>
 
         final presentVal = item['presentDays'];
         final absentVal  = item['absentDays'];
+        final prevAtt = item['previousAttendance'] as Map<String, dynamic>?;
         final isNotEntered = item['isNotEntered'] == true ||
             item['isNewRecord'] == true ||
             (presentVal == null && absentVal == null);
         attendanceData[sid] = {
           'presentDays': isNotEntered ? workingDays : ((presentVal as num?)?.toInt() ?? workingDays),
           'absentDays':  isNotEntered ? 0           : ((absentVal  as num?)?.toInt() ?? 0),
+          'prevWorkingDays': (prevAtt?['totalWorkingDays'] as num?)?.toInt() ?? 0,
+          'prevPresentDays': (prevAtt?['presentDays'] as num?)?.toInt() ?? 0,
+          'prevAbsentDays':  (prevAtt?['absentDays'] as num?)?.toInt() ?? 0,
+          'prevPercentage':  (prevAtt?['percentage'] as num?)?.toDouble() ?? 0.0,
         };
       }
 
@@ -111,8 +116,7 @@ class _StaffAttendancePageState extends State<StaffAttendancePage>
           _workingDays    = workingDays;
           _attendanceData = Map<String, Map<String, dynamic>>.from(attendanceData);
           // Cache academic year ID for save
-          final ay = academicYear;
-          if (ay != null) _academicYearId = (ay as dynamic).id?.toString();
+          _academicYearId = (academicYear as dynamic)?.id?.toString();
         });
       }
     } catch (e, st) {
@@ -206,7 +210,12 @@ class _StaffAttendancePageState extends State<StaffAttendancePage>
     final absent = days.clamp(0, _workingDays);
     final present = _workingDays - absent;
     for (var s in _students) {
-      _attendanceData[s.id] = {'absentDays': absent, 'presentDays': present};
+      final existing = _attendanceData[s.id] ?? {};
+      _attendanceData[s.id] = {
+        ...existing,
+        'absentDays': absent,
+        'presentDays': present,
+      };
     }
     setState(() {});
   }
@@ -642,6 +651,9 @@ class _StaffAttendancePageState extends State<StaffAttendancePage>
     final present = (data['presentDays'] as int?) ?? _workingDays;
     final absent = (data['absentDays'] as int?) ?? 0;
     final pct = _workingDays > 0 ? (present / _workingDays) * 100 : 0.0;
+    final prevWd = (data['prevWorkingDays'] as int?) ?? 0;
+    final prevPd = (data['prevPresentDays'] as int?) ?? 0;
+    final prevPct = (data['prevPercentage'] as num?)?.toDouble() ?? 0.0;
 
     final Color statusColor;
     final String statusLabel;
@@ -740,9 +752,53 @@ class _StaffAttendancePageState extends State<StaffAttendancePage>
               ],
             ),
 
-            const SizedBox(height: 14),
+            // ── Previous Attendance Banner ───────────────────────
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.history_rounded, size: 14, color: Colors.blueGrey.shade600),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Prev Total Attendance:',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.blueGrey.shade700,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    prevWd > 0
+                        ? '$prevPd / $prevWd days (${prevPct.toStringAsFixed(1)}%)'
+                        : '— (No prior records)',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: prevWd > 0 ? FontWeight.bold : FontWeight.w500,
+                      color: prevWd > 0
+                          ? (prevPct >= 75
+                              ? Colors.green.shade700
+                              : (prevPct >= 60 ? Colors.orange.shade800 : Colors.red.shade700))
+                          : Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
             Divider(color: Colors.grey.shade100, height: 1),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
             // ── Row 2: Present | Progress | Absent ───────────────
             Row(
