@@ -113,7 +113,9 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
   final _searchCtrl = TextEditingController();
   String _marksMode = 'total'; // 'total' | 'te' | 'both'
   String _sortBy = 'rollNo'; // 'rollNo' | 'rank' | 'name' | 'percentage'
-  String _markRangeFilter = 'all'; // 'all', '<=150', '100-500', '150-300', '300-450', '>=450'
+  String _markRangeFilter = 'all'; // 'all', '<=150', '100-500', '150-300', '300-450', '>=450', 'custom'
+  final _customMinMarkCtrl = TextEditingController();
+  final _customMaxMarkCtrl = TextEditingController();
   String? _downloadingStudentId;
 
   @override
@@ -127,6 +129,8 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _customMinMarkCtrl.dispose();
+    _customMaxMarkCtrl.dispose();
     super.dispose();
   }
 
@@ -598,6 +602,18 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
       if (_markRangeFilter == '150-300' && (activeMarks < 150 || activeMarks > 300)) return false;
       if (_markRangeFilter == '300-450' && (activeMarks < 300 || activeMarks > 450)) return false;
       if (_markRangeFilter == '>=450' && activeMarks < 450) return false;
+      if (_markRangeFilter == 'custom') {
+        final minTxt = _customMinMarkCtrl.text.trim();
+        final maxTxt = _customMaxMarkCtrl.text.trim();
+        if (minTxt.isNotEmpty) {
+          final minVal = num.tryParse(minTxt);
+          if (minVal != null && activeMarks < minVal) return false;
+        }
+        if (maxTxt.isNotEmpty) {
+          final maxVal = num.tryParse(maxTxt);
+          if (maxVal != null && activeMarks > maxVal) return false;
+        }
+      }
 
       return true;
     }).toList();
@@ -1074,6 +1090,7 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
                   {'label': '150 - 300', 'value': '150-300'},
                   {'label': '300 - 450', 'value': '300-450'},
                   {'label': '≥ 450', 'value': '>=450'},
+                  {'label': 'Custom...', 'value': 'custom'},
                 ].map((item) {
                   final isSel = _markRangeFilter == item['value'];
                   return Padding(
@@ -1103,6 +1120,78 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
               ],
             ),
           ),
+          if (_markRangeFilter == 'custom') ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Text('Custom Range: ', style: TextStyle(fontSize: 11, color: _C.text2, fontWeight: FontWeight.w600)),
+                Container(
+                  width: 65,
+                  height: 32,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: TextField(
+                    controller: _customMinMarkCtrl,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(fontSize: 12),
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      hintText: 'Min',
+                      hintStyle: TextStyle(fontSize: 11, color: _C.text3),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 6),
+                  child: Text('to', style: TextStyle(fontSize: 11, color: _C.text2)),
+                ),
+                Container(
+                  width: 65,
+                  height: 32,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                  ),
+                  child: TextField(
+                    controller: _customMaxMarkCtrl,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(fontSize: 12),
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      hintText: 'Max',
+                      hintStyle: TextStyle(fontSize: 11, color: _C.text3),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (_customMinMarkCtrl.text.isNotEmpty || _customMaxMarkCtrl.text.isNotEmpty)
+                  InkWell(
+                    onTap: () {
+                      _customMinMarkCtrl.clear();
+                      _customMaxMarkCtrl.clear();
+                      setState(() {});
+                    },
+                    borderRadius: BorderRadius.circular(4),
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(Icons.clear_rounded, size: 16, color: _C.text3),
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ],
       ),
     );
