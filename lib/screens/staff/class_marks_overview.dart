@@ -1124,70 +1124,66 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
             const SizedBox(height: 6),
             Row(
               children: [
-                const Text('Custom Range: ', style: TextStyle(fontSize: 11, color: _C.text2, fontWeight: FontWeight.w600)),
-                Container(
-                  width: 65,
-                  height: 32,
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: TextField(
-                    controller: _customMinMarkCtrl,
-                    keyboardType: TextInputType.number,
-                    style: const TextStyle(fontSize: 12),
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      hintText: 'Min',
-                      hintStyle: TextStyle(fontSize: 11, color: _C.text3),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(vertical: 8),
+                Expanded(
+                  child: Container(
+                    height: 34,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: TextField(
+                      controller: _customMinMarkCtrl,
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(fontSize: 12),
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        hintText: 'Min Mark',
+                        hintStyle: TextStyle(fontSize: 11, color: _C.text3),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                      ),
                     ),
                   ),
                 ),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 6),
-                  child: Text('to', style: TextStyle(fontSize: 11, color: _C.text2)),
+                  child: Text('to', style: TextStyle(fontSize: 12, color: _C.text2)),
                 ),
-                Container(
-                  width: 65,
-                  height: 32,
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: TextField(
-                    controller: _customMaxMarkCtrl,
-                    keyboardType: TextInputType.number,
-                    style: const TextStyle(fontSize: 12),
-                    onChanged: (_) => setState(() {}),
-                    decoration: const InputDecoration(
-                      hintText: 'Max',
-                      hintStyle: TextStyle(fontSize: 11, color: _C.text3),
-                      border: InputBorder.none,
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(vertical: 8),
+                Expanded(
+                  child: Container(
+                    height: 34,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: TextField(
+                      controller: _customMaxMarkCtrl,
+                      keyboardType: TextInputType.number,
+                      style: const TextStyle(fontSize: 12),
+                      onChanged: (_) => setState(() {}),
+                      decoration: const InputDecoration(
+                        hintText: 'Max Mark',
+                        hintStyle: TextStyle(fontSize: 11, color: _C.text3),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.symmetric(vertical: 8),
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
                 if (_customMinMarkCtrl.text.isNotEmpty || _customMaxMarkCtrl.text.isNotEmpty)
-                  InkWell(
-                    onTap: () {
+                  IconButton(
+                    icon: const Icon(Icons.clear, size: 16, color: _C.text3),
+                    onPressed: () {
                       _customMinMarkCtrl.clear();
                       _customMaxMarkCtrl.clear();
                       setState(() {});
                     },
-                    borderRadius: BorderRadius.circular(4),
-                    child: const Padding(
-                      padding: EdgeInsets.all(4),
-                      child: Icon(Icons.clear_rounded, size: 16, color: _C.text3),
-                    ),
                   ),
               ],
             ),
