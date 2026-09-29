@@ -29,11 +29,32 @@ class AttendanceModel {
     final absent = _parseInt(json['absentDays'], null, workingDays - present);
     final percent = workingDays > 0 ? (present / workingDays) * 100 : 0.0;
 
+    String studentId = '';
+    String studentName = '';
+    final studentData = json['studentId'];
+    if (studentData is Map) {
+      studentId = studentData['_id']?.toString() ?? '';
+      studentName = studentData['fullName']?.toString() ?? studentData['name']?.toString() ?? '';
+    } else if (studentData != null) {
+      studentId = studentData.toString();
+    }
+    if (studentName.isEmpty && json['studentName'] != null) {
+      studentName = json['studentName'].toString();
+    }
+
+    String classId = '';
+    final classData = json['classId'];
+    if (classData is Map) {
+      classId = classData['_id']?.toString() ?? '';
+    } else if (classData != null) {
+      classId = classData.toString();
+    }
+
     return AttendanceModel(
-      id: json['_id'] ?? '',
-      studentId: json['studentId']?['_id'] ?? json['studentId'] ?? '',
-      studentName: json['studentId']?['fullName'] ?? json['studentName'] ?? '',
-      classId: json['classId']?['_id'] ?? json['classId'] ?? '',
+      id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
+      studentId: studentId,
+      studentName: studentName,
+      classId: classId,
       year: _parseInt(json['year'], null, DateTime.now().year),
       month: _parseInt(json['month'], null, DateTime.now().month),
       totalWorkingDays: workingDays,

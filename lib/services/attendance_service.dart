@@ -68,7 +68,14 @@ class AttendanceService {
       data = [];
     }
 
-    return data.map((json) => AttendanceModel.fromJson(json as Map<String, dynamic>)).toList();
+    return data.map((json) {
+      if (json is Map<String, dynamic>) {
+        return AttendanceModel.fromJson(json);
+      } else if (json is Map) {
+        return AttendanceModel.fromJson(Map<String, dynamic>.from(json));
+      }
+      return AttendanceModel.fromJson({});
+    }).toList();
   }
 
   // ==================== TEMPLATE METHODS ====================

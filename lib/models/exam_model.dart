@@ -53,7 +53,9 @@ class ExamModel {
       displayName: rawDisplayName ?? formattedName,
       examType: json['examType'] ?? 'custom',
       description: json['description'],
-      academicYearId: json['academicYearId']?['_id'] ?? json['academicYearId'],
+      academicYearId: json['academicYearId'] is Map
+          ? (json['academicYearId']['_id']?.toString() ?? '')
+          : (json['academicYearId']?.toString() ?? ''),
       term: json['term'] ?? 'first',
       classIds: json['classIds'],
       subjects: json['subjects'],
