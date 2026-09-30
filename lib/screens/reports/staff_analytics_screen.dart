@@ -1950,44 +1950,117 @@ class _StaffAnalyticsScreenState extends State<StaffAnalyticsScreen>
           ),
           const SizedBox(height: 14),
 
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              columnSpacing: 20,
-              headingRowHeight: 36,
-              dataRowHeight: 44,
-              headingRowColor: WidgetStateProperty.all(const Color(0xFFF1F5F9)),
-              columns: const [
-                DataColumn(label: Text('Class', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                DataColumn(numeric: true, label: Text('Avg %', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                DataColumn(numeric: true, label: Text('Students', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                DataColumn(numeric: true, label: Text('Good', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-                DataColumn(numeric: true, label: Text('Alert', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-              ],
-              rows: classes.map((c) {
-                final name = c['className'] ?? '-';
-                final avg = (c['averagePercentage'] as num?)?.toDouble() ?? 0.0;
-                final total = c['totalStudents'] ?? 0;
-                final good = c['goodStandingCount'] ?? 0;
-                final alert = c['criticalCount'] ?? 0;
-
-                Color pctColor = const Color(0xFF059669);
-                if (avg < 75) {
-                  pctColor = const Color(0xFFDC2626);
-                } else if (avg < 85) {
-                  pctColor = const Color(0xFFD97706);
-                }
-
-                return DataRow(
-                  cells: [
-                    DataCell(Text(name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12))),
-                    DataCell(Text('${avg.toStringAsFixed(1)}%', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: pctColor))),
-                    DataCell(Text('$total', style: const TextStyle(fontSize: 12))),
-                    DataCell(Text('$good', style: const TextStyle(fontSize: 12, color: Color(0xFF059669)))),
-                    DataCell(Text('$alert', style: TextStyle(fontSize: 12, fontWeight: alert > 0 ? FontWeight.bold : FontWeight.normal, color: alert > 0 ? const Color(0xFFDC2626) : Colors.grey))),
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Table(
+              columnWidths: const {
+                0: FlexColumnWidth(2.2),
+                1: FlexColumnWidth(2.0),
+                2: FlexColumnWidth(1.8),
+                3: FlexColumnWidth(1.5),
+                4: FlexColumnWidth(1.5),
+              },
+              defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+              children: [
+                TableRow(
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF1F5F9),
+                  ),
+                  children: const [
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      child: Text('Class', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF334155))),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                      child: Text('Avg %', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF334155))),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                      child: Text('Students', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF334155))),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                      child: Text('Good', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF334155))),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+                      child: Text('Alert', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF334155))),
+                    ),
                   ],
-                );
-              }).toList(),
+                ),
+                ...classes.map((c) {
+                  final name = c['className'] ?? '-';
+                  final avg = (c['averagePercentage'] as num?)?.toDouble() ?? 0.0;
+                  final total = c['totalStudents'] ?? 0;
+                  final good = c['goodStandingCount'] ?? 0;
+                  final alert = c['criticalCount'] ?? 0;
+
+                  Color pctColor = const Color(0xFF059669);
+                  if (avg < 75) {
+                    pctColor = const Color(0xFFDC2626);
+                  } else if (avg < 85) {
+                    pctColor = const Color(0xFFD97706);
+                  }
+
+                  return TableRow(
+                    decoration: const BoxDecoration(
+                      border: Border(top: BorderSide(color: Color(0xFFF1F5F9), width: 1)),
+                    ),
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                        child: Text(
+                          name,
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: Color(0xFF0F172A)),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+                        child: Text(
+                          '${avg.toStringAsFixed(1)}%',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: pctColor),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+                        child: Text(
+                          '$total',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+                        child: Text(
+                          '$good',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF059669)),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+                        child: Text(
+                          '$alert',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: alert > 0 ? FontWeight.bold : FontWeight.normal,
+                            color: alert > 0 ? const Color(0xFFDC2626) : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ],
             ),
           ),
         ],
