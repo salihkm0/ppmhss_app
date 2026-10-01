@@ -10,9 +10,9 @@ import 'package:school_management/utils/formatters.dart';
 import 'package:school_management/widgets/common/loading_widget.dart';
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
-import 'package:printing/printing.dart';
 import 'package:school_management/config/api_config.dart';
 import 'package:school_management/services/api_service.dart';
+import 'package:school_management/utils/file_download_helper.dart';
 
 class MyChildResultsPage extends StatefulWidget {
   final String studentId;
@@ -74,7 +74,14 @@ class _MyChildResultsPageState extends State<MyChildResultsPage> with SingleTick
       final prefix = isReportCard ? 'ReportCard' : 'Marklist';
       final fileName = '${prefix}_${cleanStudent}_$cleanExam.pdf';
 
-      await Printing.sharePdf(bytes: bytes, filename: fileName);
+      if (mounted) {
+        await FileDownloadHelper.showDownloadOptions(
+          context: context,
+          fileName: fileName,
+          bytes: bytes,
+          isPdf: true,
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -1,10 +1,7 @@
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:printing/printing.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:school_management/config/api_config.dart';
+import 'package:school_management/utils/file_download_helper.dart';
 import 'package:school_management/services/api_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_redux/flutter_redux.dart';
@@ -860,13 +857,14 @@ class _StaffAnalyticsScreenState extends State<StaffAnalyticsScreen>
       final ext = isExcel ? 'xlsx' : 'pdf';
       final fileName = 'Rank_List_${classId}_$examId.$ext';
 
-      if (isExcel) {
-        final tempDir = await getTemporaryDirectory();
-        final file = File('${tempDir.path}/$fileName');
-        await file.writeAsBytes(bytes);
-        await Share.shareXFiles([XFile(file.path)], text: 'Student Rank List Excel (All Subjects CE & TE)');
-      } else {
-        await Printing.sharePdf(bytes: bytes, filename: fileName);
+      if (mounted) {
+        await FileDownloadHelper.showDownloadOptions(
+          context: context,
+          fileName: fileName,
+          bytes: bytes,
+          isExcel: isExcel,
+          isPdf: !isExcel,
+        );
       }
     } catch (e) {
       if (mounted) {

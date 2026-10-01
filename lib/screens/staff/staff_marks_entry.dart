@@ -4,13 +4,10 @@
 //   GET  /marks/permissions/{examId}/{classId} → permissions
 //   POST /marks/bulk/{examId}/{classId}        → { studentsData }
 
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:printing/printing.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:school_management/config/api_config.dart';
+import 'package:school_management/utils/file_download_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:school_management/services/api_service.dart';
@@ -946,13 +943,14 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
       final ext = isExcel ? 'xlsx' : 'pdf';
       final fileName = 'Class_Marks_${widget.className.replaceAll(' ', '_')}_$examId.$ext';
 
-      if (isExcel) {
-        final tempDir = await getTemporaryDirectory();
-        final file = File('${tempDir.path}/$fileName');
-        await file.writeAsBytes(bytes);
-        await Share.shareXFiles([XFile(file.path)], text: 'Class Marks Overview Excel');
-      } else {
-        await Printing.sharePdf(bytes: bytes, filename: fileName);
+      if (mounted) {
+        await FileDownloadHelper.showDownloadOptions(
+          context: context,
+          fileName: fileName,
+          bytes: bytes,
+          isExcel: isExcel,
+          isPdf: !isExcel,
+        );
       }
     } catch (e) {
       _showSnack('Failed to download file: $e', isError: true);
@@ -984,7 +982,14 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
 
       final bytes = Uint8List.fromList(response.data!);
       final fileName = 'Class_ReportCards_${widget.className.replaceAll(' ', '_')}_$examId.pdf';
-      await Printing.sharePdf(bytes: bytes, filename: fileName);
+      if (mounted) {
+        await FileDownloadHelper.showDownloadOptions(
+          context: context,
+          fileName: fileName,
+          bytes: bytes,
+          isPdf: true,
+        );
+      }
     } catch (e) {
       String msg = '$e';
       if (e is DioException && e.response?.data != null) {

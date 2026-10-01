@@ -1,12 +1,9 @@
 // lib/screens/staff/class_marks_overview.dart
 // Class teacher / admin view: see all student marks per exam for a class
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:printing/printing.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:school_management/config/api_config.dart';
+import 'package:school_management/utils/file_download_helper.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_redux/flutter_redux.dart';
 import 'package:school_management/services/api_service.dart';
@@ -449,13 +446,14 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
       final modeSuffix = _marksMode == 'te' ? '_TE' : (_marksMode == 'both' ? '_Both' : '_Total');
       final fileName = 'Class_Marks_${classId}_$examId$modeSuffix.$ext';
 
-      if (isExcel) {
-        final tempDir = await getTemporaryDirectory();
-        final file = File('${tempDir.path}/$fileName');
-        await file.writeAsBytes(bytes);
-        await Share.shareXFiles([XFile(file.path)], text: 'Class Marks Overview Excel');
-      } else {
-        await Printing.sharePdf(bytes: bytes, filename: fileName);
+      if (mounted) {
+        await FileDownloadHelper.showDownloadOptions(
+          context: context,
+          fileName: fileName,
+          bytes: bytes,
+          isExcel: isExcel,
+          isPdf: !isExcel,
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -492,7 +490,14 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
 
       final bytes = Uint8List.fromList(response.data!);
       final fileName = 'Class_ReportCards_${classId}_$examId.pdf';
-      await Printing.sharePdf(bytes: bytes, filename: fileName);
+      if (mounted) {
+        await FileDownloadHelper.showDownloadOptions(
+          context: context,
+          fileName: fileName,
+          bytes: bytes,
+          isPdf: true,
+        );
+      }
     } catch (e) {
       if (mounted) {
         String msg = '$e';
@@ -537,7 +542,14 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
       final cleanName = studentName.replaceAll(RegExp(r'\s+'), '_');
       final fileName = 'Marklist_$cleanName$modeSuffix.pdf';
 
-      await Printing.sharePdf(bytes: bytes, filename: fileName);
+      if (mounted) {
+        await FileDownloadHelper.showDownloadOptions(
+          context: context,
+          fileName: fileName,
+          bytes: bytes,
+          isPdf: true,
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -574,7 +586,14 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
       final cleanName = studentName.replaceAll(RegExp(r'\s+'), '_');
       final fileName = 'ReportCard_$cleanName.pdf';
 
-      await Printing.sharePdf(bytes: bytes, filename: fileName);
+      if (mounted) {
+        await FileDownloadHelper.showDownloadOptions(
+          context: context,
+          fileName: fileName,
+          bytes: bytes,
+          isPdf: true,
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
