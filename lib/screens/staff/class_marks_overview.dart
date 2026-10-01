@@ -1,5 +1,6 @@
 // lib/screens/staff/class_marks_overview.dart
 // Class teacher / admin view: see all student marks per exam for a class
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:school_management/config/api_config.dart';
@@ -221,6 +222,20 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
     final max = (subj['maxMarks'] ?? 0) as num;
     final ceMax = (subj['ceMaxMarks'] ?? 0) as num;
     if (teMax == 0 && (max > 0 || ceMax > 0)) {
+      return true;
+    }
+    return false;
+  }
+
+  bool get _canDownloadReportCards {
+    final store = StoreProvider.of<AppState>(context, listen: false);
+    final role = store.state.auth.user?.role;
+    if (role == 'admin' || role == 'superadmin') return true;
+    if (_data?['isAdmin'] == true) return true;
+    if (_data?['isClassTeacher'] == true) return true;
+    final classId = _selectedClassId;
+    if (classId != null &&
+        store.state.classes.teacherClassTeacherClasses.any((c) => c.id == classId)) {
       return true;
     }
     return false;
@@ -503,8 +518,15 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
         String msg = '$e';
         if (e is DioException && e.response?.data != null) {
           try {
-            final body = String.fromCharCodes(e.response!.data as List<int>);
-            msg = body;
+            final body = e.response!.data is List<int>
+                ? utf8.decode(e.response!.data as List<int>)
+                : e.response!.data.toString();
+            final parsed = jsonDecode(body);
+            if (parsed is Map && parsed['message'] != null) {
+              msg = parsed['message'].toString();
+            } else {
+              msg = body;
+            }
           } catch (_) {}
         }
         ScaffoldMessenger.of(context).showSnackBar(
@@ -596,8 +618,22 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
       }
     } catch (e) {
       if (mounted) {
+        String msg = '$e';
+        if (e is DioException && e.response?.data != null) {
+          try {
+            final body = e.response!.data is List<int>
+                ? utf8.decode(e.response!.data as List<int>)
+                : e.response!.data.toString();
+            final parsed = jsonDecode(body);
+            if (parsed is Map && parsed['message'] != null) {
+              msg = parsed['message'].toString();
+            } else {
+              msg = body;
+            }
+          } catch (_) {}
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to download report card: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Failed to download report card: $msg'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -951,20 +987,22 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
                 visualDensity: VisualDensity.compact,
               ),
             ),
-            const SizedBox(width: 8),
-            OutlinedButton.icon(
-              onPressed: _isDownloading ? null : _downloadClassReportCards,
-              icon: const Icon(Icons.badge_outlined, size: 15, color: Color(0xFF4F46E5)),
-              label: const Text(
-                'Report Cards (PDF)',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF4F46E5)),
+            if (_canDownloadReportCards) ...[
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: _isDownloading ? null : _downloadClassReportCards,
+                icon: const Icon(Icons.badge_outlined, size: 15, color: Color(0xFF4F46E5)),
+                label: const Text(
+                  'Report Cards (PDF)',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF4F46E5)),
+                ),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF4F46E5)),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  visualDensity: VisualDensity.compact,
+                ),
               ),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFF4F46E5)),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                visualDensity: VisualDensity.compact,
-              ),
-            ),
+            ],
             const SizedBox(width: 8),
             ElevatedButton.icon(
               onPressed: _isDownloading ? null : () => _downloadClassMarks(isExcel: true),
@@ -1547,16 +1585,17 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
                                 ],
                               ),
                             ),
-                            const PopupMenuItem(
-                              value: 'report_card',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.badge_outlined, size: 16, color: Color(0xFF4F46E5)),
-                                  SizedBox(width: 8),
-                                  Text('Report Card', style: TextStyle(fontSize: 12)),
-                                ],
+                            if (_canDownloadReportCards)
+                              const PopupMenuItem(
+                                value: 'report_card',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.badge_outlined, size: 16, color: Color(0xFF4F46E5)),
+                                    SizedBox(width: 8),
+                                    Text('Report Card', style: TextStyle(fontSize: 12)),
+                                  ],
+                                ),
                               ),
-                            ),
                           ],
                         ),
                 ),
@@ -1841,22 +1880,24 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        InkWell(
-                          onTap: () => _downloadStudentReportCard(student['studentId'].toString(), student['name'].toString()),
-                          borderRadius: BorderRadius.circular(6),
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.badge_outlined, size: 14, color: Color(0xFF4F46E5)),
-                                SizedBox(width: 3),
-                                Text('Report Card', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF4F46E5))),
-                              ],
+                        if (_canDownloadReportCards) ...[
+                          const SizedBox(width: 4),
+                          InkWell(
+                            onTap: () => _downloadStudentReportCard(student['studentId'].toString(), student['name'].toString()),
+                            borderRadius: BorderRadius.circular(6),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.badge_outlined, size: 14, color: Color(0xFF4F46E5)),
+                                  SizedBox(width: 3),
+                                  Text('Report Card', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFF4F46E5))),
+                                ],
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
             ],

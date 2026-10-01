@@ -4,6 +4,7 @@
 //   GET  /marks/permissions/{examId}/{classId} → permissions
 //   POST /marks/bulk/{examId}/{classId}        → { studentsData }
 
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:school_management/config/api_config.dart';
@@ -340,8 +341,30 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
 
   String get _classStatus => _permissions?['classStatus']?.toString() ?? 'draft';
 
-  bool get _isAdmin => _permissions?['isAdmin'] == true;
-  bool get _isClassTeacher => _permissions?['isClassTeacher'] == true;
+  bool get _isAdmin {
+    if (_permissions != null && _permissions!['isAdmin'] != null) {
+      return _permissions!['isAdmin'] == true;
+    }
+    try {
+      final store = StoreProvider.of<AppState>(context, listen: false);
+      final role = store.state.auth.user?.role;
+      return role == 'admin' || role == 'superadmin';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool get _isClassTeacher {
+    if (_permissions != null && _permissions!['isClassTeacher'] != null) {
+      return _permissions!['isClassTeacher'] == true;
+    }
+    try {
+      final store = StoreProvider.of<AppState>(context, listen: false);
+      return store.state.classes.teacherClassTeacherClasses.any((c) => c.id == widget.classId);
+    } catch (_) {
+      return false;
+    }
+  }
   bool get _canSubmit => _classStatus == 'draft';
   bool get _canReview => _isAdmin && _classStatus == 'submitted';
   bool get _canPublish =>
@@ -994,8 +1017,15 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
       String msg = '$e';
       if (e is DioException && e.response?.data != null) {
         try {
-          final body = String.fromCharCodes(e.response!.data as List<int>);
-          msg = body;
+          final body = e.response!.data is List<int>
+              ? utf8.decode(e.response!.data as List<int>)
+              : e.response!.data.toString();
+          final parsed = jsonDecode(body);
+          if (parsed is Map && parsed['message'] != null) {
+            msg = parsed['message'].toString();
+          } else {
+            msg = body;
+          }
         } catch (_) {}
       }
       _showSnack('Failed to download report cards: $msg', isError: true);
@@ -1324,16 +1354,17 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
                         visualDensity: VisualDensity.compact,
                       ),
                     ),
-                    OutlinedButton.icon(
-                      onPressed: _isDownloading ? null : _downloadClassReportCards,
-                      icon: const Icon(Icons.badge_outlined, size: 14, color: Color(0xFF4F46E5)),
-                      label: const Text('Report Cards', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF4F46E5))),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFF4F46E5)),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        visualDensity: VisualDensity.compact,
+                    if (_isClassTeacher || _isAdmin)
+                      OutlinedButton.icon(
+                        onPressed: _isDownloading ? null : _downloadClassReportCards,
+                        icon: const Icon(Icons.badge_outlined, size: 14, color: Color(0xFF4F46E5)),
+                        label: const Text('Report Cards', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF4F46E5))),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFF4F46E5)),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          visualDensity: VisualDensity.compact,
+                        ),
                       ),
-                    ),
                     ElevatedButton.icon(
                       onPressed: _isDownloading ? null : () => _downloadClassMarks(isExcel: true),
                       icon: const Icon(Icons.table_chart_rounded, size: 14),
