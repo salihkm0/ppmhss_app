@@ -140,6 +140,7 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
   final Map<String, ExpansionTileController> _tileControllers = {};
   final Map<String, FocusNode> _focusNodes = {};
   final Map<String, TextEditingController> _controllers = {};
+  final Map<String, GlobalKey> _fieldKeys = {};
 
   // ── UI ──
   bool _isLoading = false;
@@ -154,6 +155,7 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
     for (final c in _controllers.values) {
       c.dispose();
     }
+    _fieldKeys.clear();
     super.dispose();
   }
 
@@ -514,14 +516,38 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
 
       final nextKey = '${fieldType}_${nextSid}_$examSubjectId';
       final focusNode = _focusNodes.putIfAbsent(nextKey, () => FocusNode());
-      if (focusNode.canRequestFocus) {
-        focusNode.requestFocus();
-        final nextCtrl = _controllers[nextKey];
-        if (nextCtrl != null) {
-          nextCtrl.selection = TextSelection.collapsed(offset: nextCtrl.text.length);
+      final nextCtrl = _controllers[nextKey];
+
+      void scrollToAndFocus() {
+        final cellContext = _fieldKeys[nextKey]?.currentContext ?? focusNode.context;
+        if (cellContext != null && cellContext.mounted) {
+          Scrollable.ensureVisible(
+            cellContext,
+            alignment: 0.35,
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeInOut,
+          ).then((_) {
+            if (focusNode.canRequestFocus && !focusNode.hasFocus) {
+              focusNode.requestFocus();
+            }
+            if (nextCtrl != null) {
+              nextCtrl.selection = TextSelection.collapsed(offset: nextCtrl.text.length);
+            }
+          });
         }
-        break;
+        if (focusNode.canRequestFocus) {
+          focusNode.requestFocus();
+          if (nextCtrl != null) {
+            nextCtrl.selection = TextSelection.collapsed(offset: nextCtrl.text.length);
+          }
+        }
       }
+
+      scrollToAndFocus();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        scrollToAndFocus();
+      });
+      break;
     }
   }
 
@@ -541,14 +567,38 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
 
       final prevKey = '${fieldType}_${prevSid}_$examSubjectId';
       final focusNode = _focusNodes.putIfAbsent(prevKey, () => FocusNode());
-      if (focusNode.canRequestFocus) {
-        focusNode.requestFocus();
-        final prevCtrl = _controllers[prevKey];
-        if (prevCtrl != null) {
-          prevCtrl.selection = TextSelection.collapsed(offset: prevCtrl.text.length);
+      final prevCtrl = _controllers[prevKey];
+
+      void scrollToAndFocus() {
+        final cellContext = _fieldKeys[prevKey]?.currentContext ?? focusNode.context;
+        if (cellContext != null && cellContext.mounted) {
+          Scrollable.ensureVisible(
+            cellContext,
+            alignment: 0.35,
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeInOut,
+          ).then((_) {
+            if (focusNode.canRequestFocus && !focusNode.hasFocus) {
+              focusNode.requestFocus();
+            }
+            if (prevCtrl != null) {
+              prevCtrl.selection = TextSelection.collapsed(offset: prevCtrl.text.length);
+            }
+          });
         }
-        break;
+        if (focusNode.canRequestFocus) {
+          focusNode.requestFocus();
+          if (prevCtrl != null) {
+            prevCtrl.selection = TextSelection.collapsed(offset: prevCtrl.text.length);
+          }
+        }
       }
+
+      scrollToAndFocus();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        scrollToAndFocus();
+      });
+      break;
     }
   }
 
@@ -973,6 +1023,7 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
           bytes: bytes,
           isExcel: isExcel,
           isPdf: !isExcel,
+          isLandscape: !isExcel,
         );
       }
     } catch (e) {
@@ -1740,11 +1791,13 @@ class _StaffMarksEntryPageState extends State<StaffMarksEntryPage> {
       controller.text = value;
     }
 
+    final globalKey = _fieldKeys.putIfAbsent(fieldKey, () => GlobalKey());
+
     return SizedBox(
+      key: globalKey,
       width: 60,
       height: 40,
       child: TextFormField(
-        key: ValueKey(fieldKey),
         controller: controller,
         focusNode: focusNode,
         keyboardType: TextInputType.number,

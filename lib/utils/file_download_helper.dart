@@ -1,27 +1,77 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_saver/file_saver.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 
 class FileDownloadHelper {
+  /// Detects whether a PDF is in landscape orientation by inspecting
+  /// its filename or the PDF /MediaBox dimensions in its header.
+  static bool isPdfLandscape(Uint8List bytes, [String? fileName]) {
+    // 1. Check filename hints
+    if (fileName != null) {
+      final lower = fileName.toLowerCase();
+      if (lower.contains('class_marks') ||
+          lower.contains('classmarks') ||
+          lower.contains('landscape') ||
+          lower.contains('marks_overview') ||
+          lower.contains('mark_sheet') ||
+          lower.contains('marklist') ||
+          lower.contains('rank_list')) {
+        return true;
+      }
+    }
+
+    // 2. Inspect PDF bytes for /MediaBox [ x y width height ] or /Rotate
+    try {
+      final sampleLen = bytes.length < 8192 ? bytes.length : 8192;
+      final headerSample = utf8.decode(bytes.sublist(0, sampleLen), allowMalformed: true);
+
+      if (headerSample.contains('/Rotate 90') || headerSample.contains('/Rotate 270')) {
+        return true;
+      }
+
+      // Match /MediaBox [ 0 0 841.89 595.28 ] or similar
+      final mediaBoxRegex = RegExp(r'/MediaBox\s*\[\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*\]');
+      final match = mediaBoxRegex.firstMatch(headerSample);
+      if (match != null) {
+        final x0 = double.tryParse(match.group(1) ?? '') ?? 0;
+        final y0 = double.tryParse(match.group(2) ?? '') ?? 0;
+        final x1 = double.tryParse(match.group(3) ?? '') ?? 0;
+        final y1 = double.tryParse(match.group(4) ?? '') ?? 0;
+        final width = (x1 - x0).abs();
+        final height = (y1 - y0).abs();
+        if (width > height) {
+          return true;
+        }
+      }
+    } catch (_) {}
+
+    return false;
+  }
+
   /// Shows a modal bottom sheet allowing the user to:
   /// 1. Save to Device / Files (via native system file picker / Storage Access Framework)
-  /// 2. Open / View Document (using default PDF viewer or Excel/Sheets app)
-  /// 3. Share File (via WhatsApp, Gmail, Drive, Bluetooth, etc.)
+  /// 2. Open in PDF Viewer (opens full-screen landscape/portrait in native PDF viewer app - identical to web)
+  /// 3. Print / Print Preview (uses ISO A4 Landscape or Portrait based on document)
+  /// 4. Share File (via WhatsApp, Gmail, Drive, Bluetooth, etc.)
   static Future<void> showDownloadOptions({
     required BuildContext context,
     required String fileName,
     required Uint8List bytes,
     bool isExcel = false,
     bool isPdf = false,
+    bool? isLandscape,
   }) async {
     final fileSizeKb = (bytes.lengthInBytes / 1024).toStringAsFixed(1);
     final isDocPdf = isPdf || fileName.toLowerCase().endsWith('.pdf');
     final isDocExcel = isExcel || fileName.toLowerCase().endsWith('.xlsx') || fileName.toLowerCase().endsWith('.xls');
+    final isDocLandscape = isLandscape ?? (isDocPdf ? isPdfLandscape(bytes, fileName) : false);
 
     await showModalBottomSheet(
       context: context,
@@ -90,7 +140,7 @@ class FileDownloadHelper {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${isDocExcel ? "Excel Spreadsheet" : (isDocPdf ? "PDF Document" : "File")} • $fileSizeKb KB',
+                          '${isDocExcel ? "Excel Spreadsheet" : (isDocPdf ? (isDocLandscape ? "PDF Document • Landscape A4" : "PDF Document • Portrait A4") : "File")} • $fileSizeKb KB',
                           style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                         ),
                       ],
@@ -121,26 +171,71 @@ class FileDownloadHelper {
                 },
               ),
 
-              // Option 2: Open / Preview
-              _buildOptionTile(
-                icon: isDocPdf ? Icons.visibility_rounded : Icons.open_in_new_rounded,
-                iconColor: const Color(0xFF2563EB),
-                iconBgColor: const Color(0xFFEFF6FF),
-                title: isDocPdf ? 'Preview / Print PDF' : 'Open in Excel / Sheets',
-                subtitle: isDocPdf ? 'View document with print & save preview' : 'Open directly in your spreadsheet app',
-                onTap: () {
-                  Navigator.pop(ctx);
-                  openFile(
-                    context: context,
-                    fileName: fileName,
-                    bytes: bytes,
-                    isExcel: isDocExcel,
-                    isPdf: isDocPdf,
-                  );
-                },
-              ),
+              // Option 2 (PDF): Open in PDF Viewer (native full-screen landscape, same as web)
+              if (isDocPdf)
+                _buildOptionTile(
+                  icon: Icons.visibility_rounded,
+                  iconColor: const Color(0xFF2563EB),
+                  iconBgColor: const Color(0xFFEFF6FF),
+                  title: 'Open in PDF Viewer',
+                  subtitle: isDocLandscape
+                      ? 'Full screen landscape view (same as web PDF)'
+                      : 'View document in your default PDF reader',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    openFile(
+                      context: context,
+                      fileName: fileName,
+                      bytes: bytes,
+                      isExcel: false,
+                      isPdf: true,
+                      isLandscape: isDocLandscape,
+                    );
+                  },
+                ),
 
-              // Option 3: Share File
+              // Option 3 (PDF): Print / Print Preview with Landscape format
+              if (isDocPdf)
+                _buildOptionTile(
+                  icon: Icons.print_rounded,
+                  iconColor: const Color(0xFF4F46E5),
+                  iconBgColor: const Color(0xFFEEF2FF),
+                  title: 'Print / Print Preview',
+                  subtitle: isDocLandscape
+                      ? 'Print or preview in ISO A4 Landscape'
+                      : 'Print or save via system printer dialog',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    printPdf(
+                      context: context,
+                      fileName: fileName,
+                      bytes: bytes,
+                      isLandscape: isDocLandscape,
+                    );
+                  },
+                ),
+
+              // Option 2 (Excel): Open in Excel / Sheets
+              if (isDocExcel)
+                _buildOptionTile(
+                  icon: Icons.open_in_new_rounded,
+                  iconColor: const Color(0xFF2563EB),
+                  iconBgColor: const Color(0xFFEFF6FF),
+                  title: 'Open in Excel / Sheets',
+                  subtitle: 'Open directly in your spreadsheet app',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    openFile(
+                      context: context,
+                      fileName: fileName,
+                      bytes: bytes,
+                      isExcel: true,
+                      isPdf: false,
+                    );
+                  },
+                ),
+
+              // Option 4: Share File
               _buildOptionTile(
                 icon: Icons.share_rounded,
                 iconColor: const Color(0xFFD97706),
@@ -273,26 +368,30 @@ class FileDownloadHelper {
     }
   }
 
-  /// Opens the document directly in its associated application
+  /// Opens the document directly in its associated application (Drive PDF Viewer, Acrobat, Excel, etc.)
   static Future<void> openFile({
     required BuildContext context,
     required String fileName,
     required Uint8List bytes,
     bool isExcel = false,
     bool isPdf = false,
+    bool? isLandscape,
   }) async {
     try {
-      if (isPdf) {
-        await Printing.layoutPdf(
-          onLayout: (format) async => bytes,
-          name: fileName,
-        );
-      } else {
-        final tempDir = await getTemporaryDirectory();
-        final file = File('${tempDir.path}/$fileName');
-        await file.writeAsBytes(bytes);
-        final openResult = await OpenFilex.open(file.path);
-        if (openResult.type != ResultType.done && context.mounted) {
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/$fileName');
+      await file.writeAsBytes(bytes, flush: true);
+      final openResult = await OpenFilex.open(file.path);
+      if (openResult.type != ResultType.done && context.mounted) {
+        // Fallback to print preview if no default viewer handled the file
+        if (isPdf || fileName.toLowerCase().endsWith('.pdf')) {
+          await printPdf(
+            context: context,
+            fileName: fileName,
+            bytes: bytes,
+            isLandscape: isLandscape ?? isPdfLandscape(bytes, fileName),
+          );
+        } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(openResult.message),
@@ -315,6 +414,35 @@ class FileDownloadHelper {
     }
   }
 
+  /// Opens the system print spooler with the PDF document.
+  /// When [isLandscape] is true, sets format to [PdfPageFormat.a4.landscape] and dynamicLayout to false
+  /// so Android Print Spooler defaults to horizontal Landscape ISO A4.
+  static Future<void> printPdf({
+    required BuildContext context,
+    required String fileName,
+    required Uint8List bytes,
+    bool isLandscape = false,
+  }) async {
+    try {
+      await Printing.layoutPdf(
+        name: fileName,
+        format: isLandscape ? PdfPageFormat.a4.landscape : PdfPageFormat.a4,
+        dynamicLayout: false,
+        onLayout: (PdfPageFormat format) async => bytes,
+      );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not print file: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   /// Opens the system share sheet
   static Future<void> shareFile({
     required String fileName,
@@ -322,7 +450,7 @@ class FileDownloadHelper {
   }) async {
     final tempDir = await getTemporaryDirectory();
     final file = File('${tempDir.path}/$fileName');
-    await file.writeAsBytes(bytes);
+    await file.writeAsBytes(bytes, flush: true);
     await Share.shareXFiles([XFile(file.path)], text: fileName);
   }
 }

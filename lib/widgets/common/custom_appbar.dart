@@ -26,25 +26,26 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
       converter: (store) => store.state,
       builder: (context, state) {
         final unreadCount = state.notifications.unreadCount;
-        final isConnected = state.socket.isConnected;
         
         return AppBar(
           title: Text(
             title,
-            style: const TextStyle(fontWeight: FontWeight.w600),
+            style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.white, fontSize: 18),
           ),
           centerTitle: false,
-          backgroundColor: Colors.white,
-          foregroundColor: Colors.black87,
+          backgroundColor: AppTheme.primaryColor,
+          foregroundColor: Colors.white,
           elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.white),
+          actionsIconTheme: const IconThemeData(color: Colors.white),
           leading: showBackButton
               ? IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+                  icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.white),
                   onPressed: () => Navigator.pop(context),
                 )
               : (onMenuPressed != null
                   ? IconButton(
-                      icon: const Icon(Icons.menu),
+                      icon: const Icon(Icons.menu, color: Colors.white),
                       onPressed: onMenuPressed,
                     )
                   : null),
@@ -66,7 +67,7 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 padding: EdgeInsets.all(4),
               ),
               child: IconButton(
-                icon: const Icon(Icons.notifications_outlined),
+                icon: const Icon(Icons.notifications_outlined, color: Colors.white),
                 onPressed: onNotificationPressed ?? () {
                   Navigator.pushNamed(context, '/notifications');
                 },

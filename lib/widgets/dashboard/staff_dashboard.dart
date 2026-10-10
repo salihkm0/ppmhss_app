@@ -8,6 +8,7 @@ import 'package:school_management/utils/formatters.dart';
 import 'package:school_management/widgets/common/loading_widget.dart';
 import 'package:school_management/widgets/common/error_widget.dart';
 import 'package:school_management/services/socket_service.dart';
+import 'package:school_management/screens/students/global_student_search_screen.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Design Tokens
@@ -126,6 +127,10 @@ class _StaffDashboardState extends State<StaffDashboard> {
                       quote: _dayQuote(),
                       academicYear: d.academicYear?.name,
                     ),
+                    const SizedBox(height: 16),
+
+                    // ── Global Student Search ────────────────────────────────
+                    const GlobalStudentSearchCard(),
                     const SizedBox(height: 20),
 
                     // ── Class Teacher For ────────────────────────────────────

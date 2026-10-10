@@ -175,6 +175,11 @@ class _StaffHomePage extends StatelessWidget {
             ),
             actions: [
               IconButton(
+                icon: const Icon(Icons.search),
+                onPressed: () => Navigator.pushNamed(context, '/students/search'),
+                tooltip: 'Search Students',
+              ),
+              IconButton(
                 icon: const Icon(Icons.account_circle_outlined),
                 onPressed: () => Navigator.pushNamed(context, '/profile'),
                 tooltip: 'Profile',

@@ -58,6 +58,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           key: _scaffoldKey,
           appBar: CustomAppBar(
             title: 'Dashboard',
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.search),
+                tooltip: 'Search Students',
+                onPressed: () => Navigator.pushNamed(context, '/students/search'),
+              ),
+            ],
             onMenuPressed: () {
               if (_scaffoldKey.currentState?.isDrawerOpen == false) {
                 _scaffoldKey.currentState?.openDrawer();

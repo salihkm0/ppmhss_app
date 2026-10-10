@@ -44,9 +44,16 @@ class _StaffExamsPageState extends State<StaffExamsPage> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text(widget.className.isNotEmpty
-            ? 'Exams - ${widget.className}'
-            : 'Exams'),
+        title: Text(
+          widget.className.isNotEmpty
+              ? 'Exams - ${widget.className}'
+              : 'Exams',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
         centerTitle: false,
         elevation: 0,
         backgroundColor: AppTheme.primaryColor,

@@ -1,16 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_redux/flutter_redux.dart';
-import 'package:redux/redux.dart';
 import 'package:school_management/actions/exam_actions.dart';
-import 'package:school_management/actions/academic_year_actions.dart';
 import 'package:school_management/models/exam_model.dart';
 import 'package:school_management/store/app_state.dart';
 import 'package:school_management/widgets/common/custom_appbar.dart';
 import 'package:school_management/widgets/common/loading_widget.dart';
-import 'package:school_management/widgets/common/modal.dart';
 import 'package:school_management/widgets/common/popup_notification.dart';
 import 'package:school_management/utils/formatters.dart';
 import 'package:school_management/utils/theme.dart';
+import 'package:dio/dio.dart';
+import 'package:school_management/services/exam_service.dart';
 import 'package:pull_to_refresh/pull_to_refresh.dart';
 
 class ExamsScreen extends StatefulWidget {
@@ -26,7 +25,6 @@ class _ExamsScreenState extends State<ExamsScreen> {
   String? _selectedYearId;
   String _filterStatus = 'all';
   String _filterType = 'all';
-  String? _deleteTargetId;
   String? _cloneTargetId;
   String? _cloneYearId;
   bool _isLoading = false;
@@ -52,18 +50,199 @@ class _ExamsScreenState extends State<ExamsScreen> {
     )));
   }
 
-  void _confirmDelete(String id) {
-    setState(() => _deleteTargetId = id);
+  Future<void> _performDelete(ExamModel exam, {bool force = false}) async {
+    try {
+      final examService = ExamService();
+      await examService.deleteExam(exam.id, force: force);
+      if (mounted) {
+        PopupNotification.showSuccess(
+          context,
+          force ? 'Exam and all its marks deleted successfully' : 'Exam deleted successfully',
+        );
+        _loadExams();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      String msg = 'Failed to delete exam';
+      bool hasMarksError = false;
+      if (e is DioException && e.response?.data != null) {
+        final data = e.response!.data;
+        if (data is Map) {
+          if (data['message'] != null) {
+            msg = data['message'].toString();
+          }
+          if (data['hasMarks'] == true || msg.toLowerCase().contains('marks')) {
+            hasMarksError = true;
+          }
+        }
+      } else {
+        msg = e.toString();
+        if (msg.toLowerCase().contains('marks')) {
+          hasMarksError = true;
+        }
+      }
+
+      if (!force && hasMarksError) {
+        _showForceDeletePrompt(exam, msg);
+      } else {
+        PopupNotification.showError(context, msg);
+      }
+    }
   }
 
-  void _deleteExam() {
-    if (_deleteTargetId != null) {
-      final store = StoreProvider.of<AppState>(context, listen: false);
-      store.dispatch(deleteExamThunk(DeleteExamAction(id: _deleteTargetId!)));
-      PopupNotification.showSuccess(context, 'Exam deleted successfully');
-      setState(() => _deleteTargetId = null);
-      _loadExams();
-    }
+  void _showForceDeletePrompt(ExamModel exam, String reason) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.warning_amber_rounded, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Force Delete Exam?'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(reason, style: const TextStyle(color: Colors.black87, fontSize: 13)),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: const Text(
+                '⚠️ Force delete will permanently delete this exam AND all marks/results entered for all students in this exam. This cannot be undone.',
+                style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _performDelete(exam, force: true);
+            },
+            child: const Text('Force Delete All'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDelete(ExamModel exam) {
+    bool forceDelete = false;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: const [
+              Icon(Icons.delete_outline, color: Colors.red),
+              SizedBox(width: 8),
+              Text('Delete Exam'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Are you sure you want to delete "${exam.displayName ?? exam.name}"?',
+                style: const TextStyle(fontWeight: FontWeight.w500),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: forceDelete,
+                          activeColor: Colors.red,
+                          onChanged: (val) {
+                            setDialogState(() {
+                              forceDelete = val ?? false;
+                            });
+                          },
+                        ),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              setDialogState(() {
+                                forceDelete = !forceDelete;
+                              });
+                            },
+                            child: const Text(
+                              'Force delete (delete all marks too)',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8.0, top: 2.0),
+                      child: Text(
+                        forceDelete
+                            ? '⚠️ All entered student marks and calculated results for this exam will be permanently deleted.'
+                            : 'Note: If marks have already been entered, standard deletion is blocked unless Force delete is checked.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: forceDelete ? Colors.red.shade800 : Colors.black54,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                Navigator.pop(ctx);
+                _performDelete(exam, force: forceDelete);
+              },
+              child: Text(forceDelete ? 'Force Delete' : 'Delete'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _publishExam(String id) {
@@ -447,7 +626,7 @@ class _ExamsScreenState extends State<ExamsScreen> {
                     ),
                   ),
                   TextButton.icon(
-                    onPressed: () => _confirmDelete(exam.id),
+                    onPressed: () => _confirmDelete(exam),
                     icon: const Icon(Icons.delete, size: 16),
                     label: const Text('Delete'),
                     style: TextButton.styleFrom(

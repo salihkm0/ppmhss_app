@@ -196,14 +196,17 @@ class _MyChildrenPageState extends State<MyChildrenPage> {
         return Scaffold(
           backgroundColor: Colors.grey[50],
           appBar: AppBar(
-            title: const Text('My Children'),
+            title: const Text(
+              'My Children',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+            ),
             centerTitle: false,
             elevation: 0,
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black87,
+            backgroundColor: AppTheme.primaryColor,
+            foregroundColor: Colors.white,
             actions: [
               IconButton(
-                icon: const Icon(Icons.person_add_outlined),
+                icon: const Icon(Icons.person_add_outlined, color: Colors.white),
                 onPressed: () => setState(() => _showConnectModal = true),
                 tooltip: 'Add Child',
               ),

@@ -137,16 +137,22 @@ class _ExamFormScreenState extends State<ExamFormScreen> with SingleTickerProvid
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEditing ? 'Edit Examination' : 'Create New Examination'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        title: Text(
+          _isEditing ? 'Edit Examination' : 'Create New Examination',
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+        ),
+        backgroundColor: AppTheme.primaryColor,
+        foregroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+          icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
         bottom: TabBar(
           controller: _tabController,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white70,
+          indicatorColor: Colors.white,
           tabs: const [
             Tab(text: 'Basic Info'),
             Tab(text: 'Classes & Schedule'),

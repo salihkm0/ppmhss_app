@@ -12,6 +12,7 @@ import 'package:school_management/services/class_service.dart';
 import 'package:school_management/models/exam_model.dart';
 import 'package:school_management/models/class_model.dart';
 import 'package:school_management/widgets/common/loading_widget.dart';
+import 'package:school_management/utils/theme.dart';
 
 class StaffAnalyticsScreen extends StatefulWidget {
   final String? initialExamId;
@@ -235,14 +236,14 @@ class _StaffAnalyticsScreenState extends State<StaffAnalyticsScreen>
       appBar: AppBar(
         title: const Text(
           'Reports & Analytics',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white),
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF0F172A),
+        backgroundColor: AppTheme.primaryColor,
+        foregroundColor: Colors.white,
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh_rounded),
+            icon: const Icon(Icons.refresh_rounded, color: Colors.white),
             onPressed: () {
               if (_mainTabController.index == 0) {
                 if (_selectedExamId != null) _fetchAnalytics();

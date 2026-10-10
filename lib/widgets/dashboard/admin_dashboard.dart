@@ -11,6 +11,7 @@ import 'package:school_management/utils/formatters.dart';
 import 'package:school_management/widgets/common/loading_widget.dart';
 import 'package:school_management/widgets/common/error_widget.dart';
 import 'package:school_management/services/socket_service.dart';
+import 'package:school_management/screens/students/global_student_search_screen.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -146,7 +147,9 @@ class _AdminDashboardState extends State<AdminDashboard>
                     children: [
                       _buildHeader(
                           vm.user, dashboard.academicYear, vm.lastUpdated),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 14),
+                      const GlobalStudentSearchCard(),
+                      const SizedBox(height: 14),
                       _buildStatsGrid(summary),
                       const SizedBox(height: 20),
                       _buildPerformanceCards(

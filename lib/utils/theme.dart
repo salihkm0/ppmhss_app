@@ -72,12 +72,14 @@ class AppTheme {
     
     // AppBar Theme
     appBarTheme: const AppBarTheme(
-      backgroundColor: surfaceColor,
-      foregroundColor: textPrimaryColor,
+      backgroundColor: primaryColor,
+      foregroundColor: Colors.white,
       elevation: 0,
       centerTitle: false,
+      iconTheme: IconThemeData(color: Colors.white),
+      actionsIconTheme: IconThemeData(color: Colors.white),
       titleTextStyle: TextStyle(
-        color: textPrimaryColor,
+        color: Colors.white,
         fontSize: 18,
         fontWeight: FontWeight.w600,
       ),

@@ -86,7 +86,8 @@ class UpdateExamFailureAction {
 
 class DeleteExamAction {
   final String id;
-  DeleteExamAction({required this.id});
+  final bool force;
+  DeleteExamAction({required this.id, this.force = false});
 }
 
 class DeleteExamSuccessAction {
@@ -290,7 +291,7 @@ ThunkAction<AppState> deleteExamThunk(DeleteExamAction action) {
     store.dispatch(action);
     try {
       final examService = ExamService();
-      await examService.deleteExam(action.id);
+      await examService.deleteExam(action.id, force: action.force);
       store.dispatch(DeleteExamSuccessAction(id: action.id));
       store.dispatch(fetchExamsThunk(FetchExamsAction(page: 1)));
     } catch (e) {

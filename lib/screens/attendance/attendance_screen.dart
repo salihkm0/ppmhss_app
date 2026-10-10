@@ -91,22 +91,23 @@ class _AttendanceScreenState extends State<AttendanceScreen> with SingleTickerPr
         title: const Text(
           'Attendance',
           style: TextStyle(
-            fontSize: 28,
+            fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            color: Colors.white,
           ),
         ),
-        backgroundColor: Colors.white,
+        backgroundColor: AppTheme.primaryColor,
+        foregroundColor: Colors.white,
         elevation: 0,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: Container(
-            color: Colors.white,
+            color: AppTheme.primaryColor,
             child: TabBar(
               controller: _tabController,
-              indicatorColor: AppTheme.primaryColor,
-              labelColor: AppTheme.primaryColor,
-              unselectedLabelColor: Colors.grey[600],
+              indicatorColor: Colors.white,
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.white70,
               labelStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               unselectedLabelStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
               tabs: const [

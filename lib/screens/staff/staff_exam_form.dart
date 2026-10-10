@@ -194,7 +194,10 @@ class _StaffExamFormPageState extends State<StaffExamFormPage> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text(widget.existingExam != null ? 'Edit Exam' : 'Create Exam'),
+        title: Text(
+          widget.existingExam != null ? 'Edit Exam' : 'Create Exam',
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+        ),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,

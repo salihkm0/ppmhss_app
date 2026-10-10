@@ -15,6 +15,7 @@ import 'dart:io' show Platform;
 import 'package:school_management/screens/students/student_list_screen.dart';
 import 'package:school_management/screens/students/student_detail_screen.dart';
 import 'package:school_management/screens/students/student_form_screen.dart';
+import 'package:school_management/screens/students/global_student_search_screen.dart';
 
 // Attendance Screens
 import 'package:school_management/screens/attendance/attendance_screen.dart';
@@ -194,6 +195,12 @@ Route<dynamic>? generateAppRoute(RouteSettings settings) {
       case '/students':
         return MaterialPageRoute(
           builder: (_) => const StudentListScreen(),
+          settings: settings,
+        );
+      case '/students/search':
+        final query = settings.arguments as String?;
+        return MaterialPageRoute(
+          builder: (_) => GlobalStudentSearchScreen(initialQuery: query),
           settings: settings,
         );
       case '/students/detail':

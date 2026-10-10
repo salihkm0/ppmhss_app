@@ -468,6 +468,7 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
           bytes: bytes,
           isExcel: isExcel,
           isPdf: !isExcel,
+          isLandscape: !isExcel,
         );
       }
     } catch (e) {
@@ -692,7 +693,7 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
               children: [
                 const Text('Class Marks Overview',
                     style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
                 if (widget.className != null)
                   Text(widget.className!,
                       style:

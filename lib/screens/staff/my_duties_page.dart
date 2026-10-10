@@ -34,7 +34,14 @@ class _MyDutiesPageState extends State<MyDutiesPage> {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('My Duties'),
+        title: const Text(
+          'My Duties',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
         centerTitle: false,
         elevation: 0,
         backgroundColor: AppTheme.primaryColor,

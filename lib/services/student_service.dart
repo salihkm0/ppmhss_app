@@ -26,9 +26,43 @@ class StudentService {
     return response.data;
   }
 
+  Future<List<StudentModel>> searchStudents(String query, {int limit = 30}) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return [];
+
+    try {
+      final response = await _api.get(
+        '/students/search',
+        params: {'q': trimmed, 'limit': limit},
+        noCache: true,
+      );
+      final data = response.data;
+      final List rawList = (data is Map ? data['data'] : data) ?? [];
+      return rawList
+          .map((json) => StudentModel.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      // Fallback to standard /students with search query param
+      final response = await _api.get(
+        ApiConfig.students,
+        params: {'search': trimmed, 'limit': limit, 'page': 1},
+        noCache: true,
+      );
+      final data = response.data;
+      final List rawList = (data is Map ? data['data'] : data) ?? [];
+      return rawList
+          .map((json) => StudentModel.fromJson(json as Map<String, dynamic>))
+          .toList();
+    }
+  }
+
   Future<StudentModel> getStudentById(String id) async {
-    final response = await _api.get('${ApiConfig.students}/$id');
-    return StudentModel.fromJson(response.data);
+    final response = await _api.get('${ApiConfig.students}/$id', noCache: true);
+    final data = response.data;
+    final Map<String, dynamic> json = (data is Map && data.containsKey('data') && data['data'] is Map)
+        ? Map<String, dynamic>.from(data['data'] as Map)
+        : Map<String, dynamic>.from(data as Map);
+    return StudentModel.fromJson(json);
   }
 
   Future<StudentModel> createStudent(Map<String, dynamic> studentData) async {

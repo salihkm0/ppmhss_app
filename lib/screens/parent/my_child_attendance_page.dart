@@ -188,13 +188,16 @@ class _MyChildAttendancePageState extends State<MyChildAttendancePage> with Sing
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: const Text('Attendance Record'),
+        title: const Text(
+          'Attendance Record',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+        ),
         centerTitle: false,
         elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
+        backgroundColor: AppTheme.primaryColor,
+        foregroundColor: Colors.white,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
       ),

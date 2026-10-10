@@ -38,8 +38,9 @@ class ExamService {
     return ExamModel.fromJson(response.data);
   }
 
-  Future<void> deleteExam(String id) async {
-    await _api.delete('${ApiConfig.exams}/$id');
+  Future<void> deleteExam(String id, {bool force = false}) async {
+    final url = '${ApiConfig.exams}/$id${force ? '?force=true' : ''}';
+    await _api.delete(url);
   }
 
   Future<ExamModel> publishExam(String id) async {

@@ -1,6 +1,7 @@
 class StudentModel {
   final String id;
   final String fullName;
+  final String? fullNameMalayalam;
   final String studentCode;
   final String? admissionNo;
   final String? rollNumber;
@@ -60,6 +61,7 @@ class StudentModel {
   StudentModel({
     required this.id,
     required this.fullName,
+    this.fullNameMalayalam,
     required this.studentCode,
     this.admissionNo,
     this.rollNumber,
@@ -137,12 +139,14 @@ class StudentModel {
     return StudentModel(
       id: json['_id']?.toString() ?? '',
       fullName: json['fullName']?.toString() ?? json['studentName']?.toString() ?? '',
+      fullNameMalayalam: json['fullNameMalayalam']?.toString(),
       studentCode: json['studentCode']?.toString() ?? '',
       admissionNo: json['admissionNo']?.toString(),
       rollNumber: json['rollNumber']?.toString(),
       className: json['className']?.toString() ??
           (json['classId'] is Map ? json['classId']['name']?.toString() : null),
-      division: json['division']?.toString(),
+      division: json['division']?.toString() ??
+          (json['classId'] is Map ? json['classId']['division']?.toString() : null),
       gender: json['gender']?.toString(),
       dateOfBirth: json['dateOfBirth'] != null ? DateTime.tryParse(json['dateOfBirth'].toString()) : null,
       admissionDate: json['admissionDate'] != null ? DateTime.tryParse(json['admissionDate'].toString()) : null,
