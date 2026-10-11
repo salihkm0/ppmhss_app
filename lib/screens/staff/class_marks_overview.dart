@@ -1123,11 +1123,14 @@ class _ClassMarksOverviewPageState extends State<ClassMarksOverviewPage> {
                     onChanged: (v) {
                       if (v != null) setState(() => _sortBy = v);
                     },
-                    items: const [
-                      DropdownMenuItem(value: 'rollNo', child: Text('Sort by Roll No')),
-                      DropdownMenuItem(value: 'rank', child: Text('Sort by Rank')),
-                      DropdownMenuItem(value: 'name', child: Text('Sort by Name')),
-                      DropdownMenuItem(value: 'percentage', child: Text('Sort by %')),
+                    items: [
+                      const DropdownMenuItem(value: 'rollNo', child: Text('Sort by Roll No')),
+                      DropdownMenuItem(
+                        value: 'rank',
+                        child: Text(_marksMode == 'te' ? 'Sort by TE Rank' : 'Sort by Rank'),
+                      ),
+                      const DropdownMenuItem(value: 'name', child: Text('Sort by Name')),
+                      const DropdownMenuItem(value: 'percentage', child: Text('Sort by %')),
                     ],
                   ),
                 ),

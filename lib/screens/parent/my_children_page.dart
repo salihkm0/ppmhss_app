@@ -655,7 +655,7 @@ class _MyChildrenPageState extends State<MyChildrenPage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Enter your child\'s register no and date of birth to connect.',
+                        'Enter your child\'s admission no and date of birth to connect.',
                         style: TextStyle(fontSize: 13, color: AppTheme.primaryColor),
                       ),
                     ),
@@ -665,15 +665,15 @@ class _MyChildrenPageState extends State<MyChildrenPage> {
               const SizedBox(height: 24),
               TextFormField(
                 decoration: InputDecoration(
-                  labelText: 'Register No *',
-                  hintText: 'Enter register no',
-                  prefixIcon: const Icon(Icons.code),
+                  labelText: 'Admission No *',
+                  hintText: 'Enter admission no (e.g. 43640)',
+                  prefixIcon: const Icon(Icons.tag_rounded),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
                 onChanged: (value) => _connectForm['studentCode'] = value,
-                validator: (value) => value == null || value.isEmpty ? 'Register no is required' : null,
+                validator: (value) => value == null || value.isEmpty ? 'Admission no is required' : null,
               ),
               const SizedBox(height: 16),
               TextFormField(

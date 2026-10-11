@@ -299,6 +299,15 @@ class _CustomDrawerState extends State<CustomDrawer> {
                         ),
                         _buildModernMenuItem(
                           context: context,
+                          icon: Icons.table_chart_outlined,
+                          title: 'Class Marks',
+                          onTap: () {
+                            Navigator.pop(context);
+                            Navigator.pushNamed(context, '/class-marks');
+                          },
+                        ),
+                        _buildModernMenuItem(
+                          context: context,
                           icon: Icons.work_outline,
                           title: 'Duties',
                           onTap: () {

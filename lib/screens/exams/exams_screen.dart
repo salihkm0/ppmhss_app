@@ -613,6 +613,14 @@ class _ExamsScreenState extends State<ExamsScreen> {
                       ),
                     ),
                   TextButton.icon(
+                    onPressed: () => Navigator.pushNamed(context, '/class-marks', arguments: {'examId': exam.id}),
+                    icon: const Icon(Icons.table_chart_outlined, size: 16),
+                    label: const Text('Marks'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppTheme.primaryColor,
+                    ),
+                  ),
+                  TextButton.icon(
                     onPressed: () => Navigator.pushNamed(context, '/exams/edit', arguments: exam.id),
                     icon: const Icon(Icons.edit, size: 16),
                     label: const Text('Edit'),

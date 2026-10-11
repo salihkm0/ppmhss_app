@@ -62,6 +62,7 @@ import 'package:school_management/screens/staff/my_duties_page.dart';
 import 'package:school_management/screens/staff/staff_attendance_page.dart';
 import 'package:school_management/screens/staff/staff_exams_page.dart';
 import 'package:school_management/screens/staff/staff_marks_entry.dart';
+import 'package:school_management/screens/staff/class_marks_overview.dart';
 import 'package:school_management/screens/reports/staff_analytics_screen.dart';
 
 // Maintenance
@@ -488,6 +489,17 @@ Route<dynamic>? generateAppRoute(RouteSettings settings) {
           builder: (_) => StaffAnalyticsScreen(
             initialExamId: args?['examId'],
             initialClassId: args?['classId'],
+          ),
+          settings: settings,
+        );
+
+      case '/class-marks':
+        final args = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(
+          builder: (_) => ClassMarksOverviewPage(
+            classId: args?['classId']?.toString(),
+            className: args?['className']?.toString(),
+            examId: args?['examId']?.toString(),
           ),
           settings: settings,
         );
