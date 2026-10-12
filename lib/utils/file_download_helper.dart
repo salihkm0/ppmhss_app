@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
+import '../screens/common/pdf_viewer_screen.dart';
 
 class FileDownloadHelper {
   /// Detects whether a PDF is in landscape orientation by inspecting
@@ -152,7 +153,30 @@ class FileDownloadHelper {
               const Divider(height: 1, color: Color(0xFFE2E8F0)),
               const SizedBox(height: 10),
 
-              // Option 1: Save to Device
+              // Option 1 (PDF): View PDF (Native in-app full-fidelity viewer with landscape support)
+              if (isDocPdf)
+                _buildOptionTile(
+                  icon: Icons.visibility_rounded,
+                  iconColor: const Color(0xFF2563EB),
+                  iconBgColor: const Color(0xFFEFF6FF),
+                  title: isDocLandscape ? 'View PDF (Landscape)' : 'View PDF',
+                  subtitle: isDocLandscape
+                      ? 'Full-screen A4 Landscape viewer with zoom & pan'
+                      : 'Full-screen document viewer with zoom & pan',
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    openFile(
+                      context: context,
+                      fileName: fileName,
+                      bytes: bytes,
+                      isExcel: false,
+                      isPdf: true,
+                      isLandscape: isDocLandscape,
+                    );
+                  },
+                ),
+
+              // Option 2: Save to Device
               _buildOptionTile(
                 icon: Icons.download_rounded,
                 iconColor: const Color(0xFF059669),
@@ -171,39 +195,16 @@ class FileDownloadHelper {
                 },
               ),
 
-              // Option 2 (PDF): Open in PDF Viewer (native full-screen landscape, same as web)
-              if (isDocPdf)
-                _buildOptionTile(
-                  icon: Icons.visibility_rounded,
-                  iconColor: const Color(0xFF2563EB),
-                  iconBgColor: const Color(0xFFEFF6FF),
-                  title: 'Open in PDF Viewer',
-                  subtitle: isDocLandscape
-                      ? 'Full screen landscape view (same as web PDF)'
-                      : 'View document in your default PDF reader',
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    openFile(
-                      context: context,
-                      fileName: fileName,
-                      bytes: bytes,
-                      isExcel: false,
-                      isPdf: true,
-                      isLandscape: isDocLandscape,
-                    );
-                  },
-                ),
-
-              // Option 3 (PDF): Print / Print Preview with Landscape format
+              // Option 3 (PDF): Print Document
               if (isDocPdf)
                 _buildOptionTile(
                   icon: Icons.print_rounded,
                   iconColor: const Color(0xFF4F46E5),
                   iconBgColor: const Color(0xFFEEF2FF),
-                  title: 'Print / Print Preview',
+                  title: 'Print Document',
                   subtitle: isDocLandscape
-                      ? 'Print or preview in ISO A4 Landscape'
-                      : 'Print or save via system printer dialog',
+                      ? 'Print via system printer dialog (A4 Landscape)'
+                      : 'Print via system printer dialog',
                   onTap: () {
                     Navigator.pop(ctx);
                     printPdf(
@@ -368,7 +369,8 @@ class FileDownloadHelper {
     }
   }
 
-  /// Opens the document directly in its associated application (Drive PDF Viewer, Acrobat, Excel, etc.)
+  /// Opens the document directly. For PDFs, launches the high-fidelity in-app PDF viewer
+  /// with landscape support. For Excel and other formats, opens the default associated app.
   static Future<void> openFile({
     required BuildContext context,
     required String fileName,
@@ -378,28 +380,36 @@ class FileDownloadHelper {
     bool? isLandscape,
   }) async {
     try {
+      final isDocPdf = isPdf || fileName.toLowerCase().endsWith('.pdf');
+      if (isDocPdf) {
+        final docLandscape = isLandscape ?? isPdfLandscape(bytes, fileName);
+        if (context.mounted) {
+          await Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => PdfViewerScreen(
+                fileName: fileName,
+                bytes: bytes,
+                isLandscape: docLandscape,
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Handle Excel / Sheets and other non-PDF documents
       final tempDir = await getTemporaryDirectory();
       final file = File('${tempDir.path}/$fileName');
       await file.writeAsBytes(bytes, flush: true);
       final openResult = await OpenFilex.open(file.path);
       if (openResult.type != ResultType.done && context.mounted) {
-        // Fallback to print preview if no default viewer handled the file
-        if (isPdf || fileName.toLowerCase().endsWith('.pdf')) {
-          await printPdf(
-            context: context,
-            fileName: fileName,
-            bytes: bytes,
-            isLandscape: isLandscape ?? isPdfLandscape(bytes, fileName),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(openResult.message),
-              backgroundColor: Colors.orange,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(openResult.message),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       }
     } catch (e) {
       if (context.mounted) {
@@ -424,10 +434,24 @@ class FileDownloadHelper {
     bool isLandscape = false,
   }) async {
     try {
+      if (isLandscape && Platform.isAndroid && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Printing Landscape: In the print dialog, ensure Orientation is set to Landscape.',
+            ),
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: const Color(0xFF1E293B),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+      }
       await Printing.layoutPdf(
         name: fileName,
         format: isLandscape ? PdfPageFormat.a4.landscape : PdfPageFormat.a4,
         dynamicLayout: false,
+        usePrinterSettings: false,
         onLayout: (PdfPageFormat format) async => bytes,
       );
     } catch (e) {
